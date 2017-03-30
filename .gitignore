@@ -1,8 +1,21 @@
+# Autotools files
+Makefile
+Makefile.in
+.deps
+
+/aclocal.m4
+/autom4te.cache
+/configure
+/config.log
+/config.status
+/build-aux
+
 # Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
+*.dSYM
 
 # Precompiled Headers
 *.gch
