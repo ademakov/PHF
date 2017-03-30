@@ -1,0 +1,2 @@
+
+SUBDIRS = phf examples
