@@ -37,38 +37,34 @@ public:
 			s = rng();
 	}
 
-	hasher(const hasher& other)
-	: seeds_(other.seeds_)
+	hasher(const hasher &other) : seeds_(other.seeds_)
 	{
 	}
 
 	void operator=(const key_type &key)
 	{
 		key_ = key;
-		isset_.reset();
 	}
 
 	result_type operator[](std::size_t index)
 	{
-		if (!isset_[index]) {
-			isset_.set(index);
-			values_[index] = hash(index);
-		}
-		return values_[index];
+		return hash(key_, seeds_[index]);
 	}
 
 private:
 	template <typename H = base_hasher, typename K = key_type,
 		  typename std::enable_if_t<is_extended_hasher_v<H, K>, int> = 0>
-	result_type hash(std::size_t index) {
-		return base_hasher::operator()(key_, seeds_[index]);
+	result_type hash(const key_type &key, random_type seed)
+	{
+		return base_hasher::operator()(key, seed);
 	}
 
 	template <typename H = base_hasher, typename K = key_type,
 		  typename std::enable_if_t<not is_extended_hasher_v<H, K>, int> = 0>
-	result_type hash(std::size_t index) {
+	result_type hash(const key_type &key, random_type seed)
+	{
 		// TODO: Do something better.
-		return base_hasher::operator()(key_) * seeds_[index];
+		return base_hasher::operator()(key) * seed;
 	}
 
 	// The current key to hash.
@@ -76,8 +72,48 @@ private:
 
 	// Seeds for hash functions.
 	std::array<random_type, count> seeds_;
+};
 
-	// Hash values computed on demand.
+//
+// A hasher that produces on demand and remembers multiple hash values
+// based on a standard or extended hasher.
+//
+template <std::size_t N, typename Key, typename Hash = std::hash<Key>>
+class caching_hasher : private hasher<N, Key, Hash>
+{
+public:
+	using base = hasher<N, Key, Hash>;
+	using typename base::key_type;
+	using typename base::base_hasher;
+	using typename base::result_type;
+	using typename base::random_type;
+	using base::count;
+
+	caching_hasher(random_type seed = 1) : base(seed)
+	{
+	}
+
+	caching_hasher(const caching_hasher &other) : base(other)
+	{
+	}
+
+	void operator=(const key_type &key)
+	{
+		base::operator=(key);
+		isset_.reset();
+	}
+
+	result_type operator[](std::size_t index)
+	{
+		if (!isset_[index]) {
+			isset_.set(index);
+			values_[index] = base::operator[](index);
+		}
+		return values_[index];
+	}
+
+private:
+	// Cached hash values computed on demand.
 	std::bitset<count> isset_;
 	std::array<result_type, count> values_;
 };
