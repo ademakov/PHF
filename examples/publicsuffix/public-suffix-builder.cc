@@ -10,11 +10,18 @@
 // Require libidn for handling international domain names.
 #include <idna.h>
 
+#define PHF_DEBUG 2
 #include "phf/builder.h"
 
 #include "public-suffix-types.h"
 
 using namespace public_suffix;
+
+struct BuildContext
+{
+	std::size_t aux_tables = 0;
+	std::size_t max_label_size = 0;
+};
 
 class Suffix
 {
@@ -72,10 +79,45 @@ public:
 			suffix.Dump(stream, level + 1);
 	}
 
+	void BuildPrepare(BuildContext &ctx)
+	{
+		auto size = label_.size() + 1;
+		if (ctx.max_label_size < size)
+			ctx.max_label_size = size;
+
+		if (!next_level_.empty()) {
+			for (auto &suffix : next_level_)
+				suffix.BuildPrepare(ctx);
+
+			auto aux_table_no = ctx.aux_tables++;
+			node_ = "node_" + std::to_string(aux_table_no);
+		}
+	}
+
+	void BuildNode()
+	{
+		if (!next_level_.empty()) {
+			for (auto &suffix : next_level_)
+				suffix.BuildNode();
+
+			std::cout << "Node " << node_ << "[] = {\n";
+			for (auto &suffix : next_level_) {
+				std::cout << "\t{\"" << suffix.label_ << "\", "
+					  << suffix.next_level_.size() << ", " << suffix.rule_;
+				if (!suffix.next_level_.empty())
+					std::cout << ", " << suffix.node_;
+				std::cout << "},\n";
+			}
+			std::cout << "};\n\n";
+		}
+	}
+
 private:
 	Rule rule_;
 	std::string label_;
 	std::vector<Suffix> next_level_;
+
+	std::string node_;
 
 	friend class SuffixRoot;
 };
@@ -111,12 +153,65 @@ public:
 		it->second.AddSuffix(rule, rest, first, rest);
 	}
 
-	void BuildMPHF() {
+	void BuildMPHF()
+	{
 		auto seed = phf::random_device_seed{}();
-		phf::builder<16, std::string, Fnv64> builder(1.5, seed);
+		phf::builder<16, std::string, Fnv64> builder(4, seed);
 		for (const auto &suffix : second_level_)
 			builder.insert(suffix.second.label_);
-		builder.build();
+
+		auto mph = builder.build();
+
+		std::vector<Suffix *> index(second_level_.size());
+		for (auto &suffix : second_level_) {
+			auto i = (*mph)[suffix.second.label_];
+			if (i >= index.size())
+				throw std::runtime_error("mph produced invalid index "
+							 + std::to_string(i));
+			index[i] = &suffix.second;
+		}
+
+		BuildContext ctx;
+		for (auto suffix : index) {
+			suffix->BuildPrepare(ctx);
+		}
+		for (auto &label : first_level_) {
+			auto size = label.size() + 1;
+			if (ctx.max_label_size < size)
+				ctx.max_label_size = size;
+		}
+
+		std::cout << "#include \"public-suffix-types.h\"\n\n";
+		std::cout << "using namespace public_suffix;\n\n";
+		std::cout << "namespace {\n\n";
+		std::cout << "struct Node {\n";
+		std::cout << "\tchar label[" << ctx.max_label_size << "];\n";
+		std::cout << "\tuint8_t size;\n";
+		std::cout << "\tRule rule;\n";
+		std::cout << "\tNode* node;\n";
+		std::cout << "};\n\n";
+
+		for (auto &suffix : index) {
+			if (!suffix->next_level_.empty())
+				suffix->BuildNode();
+		}
+
+		std::cout << "Node second_level_nodes[] = {\n";
+		for (auto suffix : index) {
+			std::cout << "\t{\"" << suffix->label_ << "\", "
+				  << suffix->next_level_.size() << ", " << suffix->rule_;
+			if (!suffix->next_level_.empty())
+				std::cout << ", " << suffix->node_;
+			std::cout << "},\n";
+		}
+		std::cout << "};\n\n";
+
+		std::cout << "Node first_level_nodes[] = {\n";
+		for (auto &label : first_level_)
+			std::cout << "\t{\"" << label << "\", 0, Rule::kWildcard},\n";
+		std::cout << "};\n\n";
+
+		std::cout << "} // namespace\n";
 	}
 
 	void Dump(std::ostream &stream) const
