@@ -63,7 +63,7 @@ private:
 	void compute(std::size_t index) {
 		isset_.set(index);
 		// TODO: Do something better.
-		values_[index] = base_hasher::operator()(key_, seeds_[index]) * seeds_[index];
+		values_[index] = base_hasher::operator()(key_) * seeds_[index];
 	}
 
 	// The current key to hash.
