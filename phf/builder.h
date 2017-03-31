@@ -96,7 +96,7 @@ public:
 #endif
 
 		std::size_t total_size = 0;
-		std::array<std::size_t, count> sizes;
+		std::array<std::size_t, count> sizes = { 0 };
 		for (std::size_t level = 0; level < nlevels_; level++) {
 			sizes[level] = level_bits_[level].size();
 			total_size += sizes[level];
