@@ -53,14 +53,14 @@ public:
 
 private:
 	template <typename H = base_hasher, typename K = key_type,
-		  typename std::enable_if_t<is_extended_hasher_v<H, K>, int> = 0>
+		  std::enable_if_t<is_extended_hasher_v<H, K>, int> = 0>
 	result_type hash(const key_type &key, random_type seed)
 	{
 		return base_hasher::operator()(key, seed);
 	}
 
 	template <typename H = base_hasher, typename K = key_type,
-		  typename std::enable_if_t<not is_extended_hasher_v<H, K>, int> = 0>
+		  std::enable_if_t<not is_extended_hasher_v<H, K>, int> = 0>
 	result_type hash(const key_type &key, random_type seed)
 	{
 		// TODO: Do something better.
