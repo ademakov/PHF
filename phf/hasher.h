@@ -37,6 +37,11 @@ public:
 			s = rng();
 	}
 
+	hasher(const hasher& other)
+	: seeds_(other.seeds_)
+	{
+	}
+
 	void operator=(const key_type &key)
 	{
 		key_ = key;
