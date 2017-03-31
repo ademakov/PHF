@@ -45,25 +45,25 @@ public:
 
 	result_type operator[](std::size_t index)
 	{
-		if (!isset_[index])
-			compute(index);
+		if (!isset_[index]) {
+			isset_.set(index);
+			values_[index] = hash(index);
+		}
 		return values_[index];
 	}
 
 private:
 	template <typename H = base_hasher, typename K = key_type,
 		  typename std::enable_if_t<is_extended_hasher_v<H, K>, int> = 0>
-	void compute(std::size_t index) {
-		isset_.set(index);
-		values_[index] = base_hasher::operator()(key_, seeds_[index]);
+	result_type hash(std::size_t index) {
+		return base_hasher::operator()(key_, seeds_[index]);
 	}
 
 	template <typename H = base_hasher, typename K = key_type,
 		  typename std::enable_if_t<not is_extended_hasher_v<H, K>, int> = 0>
-	void compute(std::size_t index) {
-		isset_.set(index);
+	result_type hash(std::size_t index) {
 		// TODO: Do something better.
-		values_[index] = base_hasher::operator()(key_) * seeds_[index];
+		return base_hasher::operator()(key_) * seeds_[index];
 	}
 
 	// The current key to hash.
