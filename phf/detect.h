@@ -6,7 +6,7 @@
 #ifdef __has_include
 // clang-format off
 #if __has_include(<experimental/type_traits>)
-#include <experimental/type_traits>
+# include <experimental/type_traits>
 #endif
 // clang-format on
 #endif
@@ -75,7 +75,7 @@ constexpr bool is_detected_exact_v
 template <typename H, typename K>
 using standard_hasher_t = decltype(std::declval<H>()(std::declval<K>()));
 template <typename H, typename K>
-constexpr bool is_standard_hasher_v = is_detected_exact_v<size_t, standard_hasher_t, H, K>;
+constexpr bool is_standard_hasher_v = is_detected_exact_v<std::size_t, standard_hasher_t, H, K>;
 
 //
 // Template utility that checks if a given type provides a hash operator
@@ -86,7 +86,7 @@ constexpr bool is_standard_hasher_v = is_detected_exact_v<size_t, standard_hashe
 template <typename H, typename K>
 using extended_hasher_t = decltype(std::declval<H>()(std::declval<K>(), 1u));
 template <typename H, typename K>
-constexpr bool is_extended_hasher_v = is_detected_exact_v<size_t, extended_hasher_t, H, K>;
+constexpr bool is_extended_hasher_v = is_detected_exact_v<std::size_t, extended_hasher_t, H, K>;
 
 } // namespace phf
 
