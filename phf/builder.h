@@ -60,7 +60,7 @@ public:
 				if (level_bits_[level][index]) {
 #if PHF_DEBUG > 1
 					if (size <= 128)
-						std::cout << *it << " - (" << index << ' '
+						std::cerr << *it << " - (" << index << ' '
 							  << std::hex << hash << std::dec
 							  << ")\n";
 #endif
@@ -70,7 +70,7 @@ public:
 				} else {
 #if PHF_DEBUG > 1
 					if (size <= 128)
-						std::cout << *it << " + (" << index << ' '
+						std::cerr << *it << " + (" << index << ' '
 							  << std::hex << hash << std::dec
 							  << ")\n";
 #endif
@@ -81,18 +81,18 @@ public:
 
 #if PHF_DEBUG > 1
 			if (size <= 128)
-				std::cout << "--\n";
+				std::cerr << "--\n";
 			level_ranks[level] = rank;
 #endif
 		}
 
 #if PHF_DEBUG > 0
-		std::cout << nlevels_ << ' ' << keys_.size() << '\n';
+		std::cerr << nlevels_ << ' ' << keys_.size() << '\n';
 		for (std::size_t level = 0; level < nlevels_; level++) {
-			std::cout << level_ranks[level] << '/' << level_bits_[level].size()
+			std::cerr << level_ranks[level] << '/' << level_bits_[level].size()
 				  << ' ';
 		}
-		std::cout << '\n';
+		std::cerr << '\n';
 #endif
 
 		std::size_t total_size = 0;
@@ -106,8 +106,10 @@ public:
 		std::vector<std::uint64_t> bitset((total_size + 63) / 64);
 		for (std::size_t level = 0; level < nlevels_; level++) {
 			for (std::size_t index = 0; index < sizes[level]; index++) {
-				if (level_bits_[level][index])
-					bitset[bit_index / 64] |= 1 << (bit_index % 64);
+				if (level_bits_[level][index]) {
+					auto mask = UINT64_C(1) << (bit_index % 64);
+					bitset[bit_index / 64] |= mask;
+				}
 				bit_index++;
 			}
 		}
