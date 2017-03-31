@@ -16,6 +16,7 @@ public:
 	using key_type = K;
 	using base_hasher_type = H;
 	using hasher_type = hasher<N, key_type, base_hasher_type>;
+	using hash_type = typename hasher_type::result_type;
 
 	static constexpr std::size_t count = hasher_type::count;
 
@@ -47,24 +48,34 @@ public:
 			while (it != keys_.end()) {
 				hasher_ = *it;
 				auto hash = hasher_[index];
-				std::size_t bit = hash % size;
+				std::size_t bit = bit_index(hash, size);
 
 				if (bitsets_[index][bit]) {
+#if DEBUG
 					if (size <= 64)
-						std::cout << *it << " -\n";
+						std::cout << *it << " - (" << bit << ' '
+							  << std::hex << hash << std::dec
+							  << ")\n";
+#endif
 
 					keys_.erase(it++);
 					++rank;
 				} else {
+#if DEBUG
 					if (size <= 64)
-						std::cout << *it << " +\n";
+						std::cout << *it << " + (" << bit << ' '
+							  << std::hex << hash << std::dec
+							  << ")\n";
+#endif
 
 					++it;
 				}
 			}
 
+#if DEBUG
 			if (size <= 64)
 				std::cout << "--\n";
+#endif
 
 			ranks_[index] = rank;
 		}
@@ -87,6 +98,11 @@ public:
 	}
 
 private:
+	std::size_t bit_index(hash_type hash, std::size_t size)
+	{
+		return hash % size;
+	}
+
 	void fill_bitset(size_t index)
 	{
 		// Choose the bitset size twice the number of keys rounding
@@ -102,7 +118,7 @@ private:
 			hasher_ = key;
 
 			auto hash = hasher_[index];
-			std::size_t bit = hash % size;
+			std::size_t bit = bit_index(hash, size);
 			if (collisions_[bit])
 				continue;
 
