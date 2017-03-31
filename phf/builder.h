@@ -1,7 +1,6 @@
 #ifndef PERFECT_HASH_BUILDER_H
 #define PERFECT_HASH_BUILDER_H
 
-#include <functional>
 #include <unordered_set>
 #include <vector>
 
@@ -9,12 +8,12 @@
 
 namespace phf {
 
-template <std::size_t N, typename K, typename H>
+template <std::size_t N, typename Key, typename Hash = std::hash<Key>>
 class builder
 {
 public:
-	using key_type = K;
-	using base_hasher_type = H;
+	using key_type = Key;
+	using base_hasher_type = Hash;
 	using hasher_type = hasher<N, key_type, base_hasher_type>;
 	using hash_type = typename hasher_type::result_type;
 
@@ -31,28 +30,28 @@ public:
 
 	void build()
 	{
-		nbitsets_ = count;
+		nlevels_ = count;
 
-		for (std::size_t index = 0; index < count; index++) {
+		for (std::size_t level = 0; level < count; level++) {
 			if (keys_.empty()) {
-				nbitsets_ = index;
+				nlevels_ = level;
 				break;
 			}
 
-			fill_bitset(index);
+			fill_level(level);
 
 			std::size_t rank = 0;
 
 			auto it = keys_.begin();
-			auto size = bitsets_[index].size();
+			auto size = level_bits_[level].size();
 			while (it != keys_.end()) {
 				hasher_ = *it;
-				auto hash = hasher_[index];
+				auto hash = hasher_[level];
 				std::size_t bit = bit_index(hash, size);
 
-				if (bitsets_[index][bit]) {
-#if DEBUG
-					if (size <= 64)
+				if (level_bits_[level][bit]) {
+#if PHF_DEBUG > 1
+					if (size <= 128)
 						std::cout << *it << " - (" << bit << ' '
 							  << std::hex << hash << std::dec
 							  << ")\n";
@@ -61,8 +60,8 @@ public:
 					keys_.erase(it++);
 					++rank;
 				} else {
-#if DEBUG
-					if (size <= 64)
+#if PHF_DEBUG > 1
+					if (size <= 128)
 						std::cout << *it << " + (" << bit << ' '
 							  << std::hex << hash << std::dec
 							  << ")\n";
@@ -72,19 +71,22 @@ public:
 				}
 			}
 
-#if DEBUG
-			if (size <= 64)
+#if PHF_DEBUG > 1
+			if (size <= 128)
 				std::cout << "--\n";
 #endif
 
-			ranks_[index] = rank;
+			level_ranks_[level] = rank;
 		}
 
-		std::cout << nbitsets_ << ' ' << keys_.size() << '\n';
-		for (std::size_t index = 0; index < nbitsets_; index++) {
-			std::cout << ranks_[index] << '/' << bitsets_[index].size() << ' ';
+#if PHF_DEBUG > 0
+		std::cout << nlevels_ << ' ' << keys_.size() << '\n';
+		for (std::size_t level = 0; level < nlevels_; level++) {
+			std::cout << level_ranks_[level] << '/' << level_bits_[level].size()
+				  << ' ';
 		}
 		std::cout << '\n';
+#endif
 	}
 
 	void clear()
@@ -92,9 +94,9 @@ public:
 		hasher_ = hasher_type(seed_);
 
 		keys_.clear();
-		for (auto &bs : bitsets_)
+		for (auto &bs : level_bits_)
 			bs.clear();
-		nbitsets_ = 0;
+		nlevels_ = 0;
 	}
 
 private:
@@ -103,29 +105,29 @@ private:
 		return hash % size;
 	}
 
-	void fill_bitset(size_t index)
+	void fill_level(size_t level)
 	{
 		// Choose the bitset size twice the number of keys rounding
 		// it to a 64-bit multiple.
 		std::size_t size = keys_.size() * gamma_;
 		size = (size + 63) & ~63;
 
-		bitsets_[index].clear();
-		bitsets_[index].resize(size);
+		level_bits_[level].clear();
+		level_bits_[level].resize(size);
 		std::vector<bool> collisions_(size);
 
 		for (const auto &key : keys_) {
 			hasher_ = key;
 
-			auto hash = hasher_[index];
+			auto hash = hasher_[level];
 			std::size_t bit = bit_index(hash, size);
 			if (collisions_[bit])
 				continue;
 
-			if (not bitsets_[index][bit]) {
-				bitsets_[index][bit] = true;
+			if (not level_bits_[level][bit]) {
+				level_bits_[level][bit] = true;
 			} else {
-				bitsets_[index][bit] = false;
+				level_bits_[level][bit] = false;
 				collisions_[bit] = true;
 			}
 		}
@@ -139,10 +141,10 @@ private:
 	hasher_type hasher_;
 
 	std::unordered_set<key_type> keys_;
-	std::vector<bool> bitsets_[count];
-	std::size_t nbitsets_ = 0;
 
-	std::array<std::size_t, count> ranks_;
+	std::size_t nlevels_ = 0;
+	std::vector<bool> level_bits_[count];
+	std::array<std::size_t, count> level_ranks_;
 };
 
 } // namespace phf
