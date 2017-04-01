@@ -106,6 +106,8 @@ public:
 					  << suffix.next_level_.size() << ", " << suffix.rule_;
 				if (!suffix.next_level_.empty())
 					std::cout << ", " << suffix.node_;
+				else
+					std::cout << ", nullptr";
 				std::cout << "},\n";
 			}
 			std::cout << "};\n\n";
@@ -203,13 +205,15 @@ public:
 				  << suffix->next_level_.size() << ", " << suffix->rule_;
 			if (!suffix->next_level_.empty())
 				std::cout << ", " << suffix->node_;
+			else
+				std::cout << ", nullptr";
 			std::cout << "},\n";
 		}
 		std::cout << "};\n\n";
 
 		std::cout << "Node first_level_nodes[] = {\n";
 		for (auto &label : first_level_)
-			std::cout << "\t{\"" << label << "\", 0, Rule::kWildcard},\n";
+			std::cout << "\t{\"" << label << "\", 0, Rule::kWildcard, nullptr},\n";
 		std::cout << "};\n\n";
 
 		mph->emit(std::cout, "second_level_index", "std::string", "Fnv64");
