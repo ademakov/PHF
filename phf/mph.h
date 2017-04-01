@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 
@@ -75,8 +76,11 @@ public:
 
 		rank_type base = 0;
 		for (std::size_t level = 0; level < count; level++) {
-			auto hash = hasher_[level];
 			auto size = levels_[level];
+			if (size == 0)
+				continue;
+
+			auto hash = hasher_[level];
 			auto bit_index = base + hash % size;
 
 			auto index = bit_index / value_nbits;
@@ -100,6 +104,50 @@ public:
 		if (it == extra_keys_.end())
 			return not_found;
 		return it->second;
+	}
+
+	void emit(std::ostream &os, const std::string &name, const std::string &key_type_name,
+		  const std::string &hasher_type_name)
+	{
+		std::string mph_base = "phf::minimal_perfect_hash<static_count, "
+				       + key_type_name + ", " + hasher_type_name
+				       + ", std::size_t, static_bitset>";
+
+		os << "namespace " << name << " {\n\n";
+		os << "static constexpr std::size_t static_count = " << count << ";\n\n";
+		os << "static constexpr std::size_t static_bitset_size = " << bitset_.size()
+		   << ";\n\n";
+		os << "phf::hasher<static_count, " << key_type_name << ", " << hasher_type_name
+		   << "> static_hasher(std::array<std::uint64_t, static_count>{0x" << std::hex;
+		for (std::size_t i = 0; i < count; i++) {
+			os << hasher_.seeds()[i];
+			if (i != (count - 1))
+				os << ", 0x";
+		}
+		os << std::dec << "});\n\n";
+		os << "std::array<std::size_t, static_count> static_levels = {";
+		for (auto level : levels_)
+			os << level << ", ";
+		os << "};\n\n";
+		os << "std::array<std::uint64_t, static_bitset_size> static_bitset_data = {\n";
+		for (auto value : bitset_)
+			os << "\t0x" << std::hex << value << std::dec << ",\n";
+		os << "};\n\n";
+		os << "struct static_bitset {\n";
+		os << "\tusing value_type = std::uint64_t;\n";
+		os << "\tusing iterator = std::uint64_t *;\n";
+		os << "\tusing const_iterator = const std::uint64_t *;\n";
+		os << "\tstd::size_t size() { return static_bitset_data.size(); }\n";
+		os << "\tvalue_type& operator[](std::size_t i) { return static_bitset_data[i]; }\n";
+		os << "\tconst value_type& operator[](std::size_t i) const { return static_bitset_data[i]; }\n";
+		os << "};\n\n";
+		os << "struct mph : " << mph_base << " {\n";
+		os << "\tmph() : " << mph_base
+		   << "(static_hasher, static_levels, static_bitset())"
+		   << " {\n";
+		os << "\t}\n";
+		os << "} instance;\n\n";
+		os << "} // namespace " << name << "\n\n";
 	}
 
 private:
