@@ -5,6 +5,7 @@
 #include <array>
 #include <bitset>
 #include <functional>
+#include <iostream>
 #include <utility>
 
 #include "detect.h"
@@ -30,11 +31,17 @@ public:
 	static constexpr std::size_t max_count = 256;
 	static constexpr std::size_t count = std::min(std::max(N, min_count), max_count);
 
+	using seeds_array = std::array<random_type, count>;
+
 	hasher(random_type seed = 1)
 	{
 		rng128 rng(seed);
 		for (auto &s : seeds_)
 			s = rng();
+	}
+
+	hasher(const seeds_array &seeds) : seeds_(seeds)
+	{
 	}
 
 	hasher(const hasher &other) : seeds_(other.seeds_)
@@ -50,6 +57,8 @@ public:
 	{
 		return hash(key_, seeds_[index]);
 	}
+
+	const seeds_array& seeds() const { return seeds_; }
 
 private:
 	template <typename H = base_hasher, typename K = key_type,
@@ -71,7 +80,7 @@ private:
 	key_type key_;
 
 	// Seeds for hash functions.
-	std::array<random_type, count> seeds_;
+	seeds_array seeds_;
 };
 
 //
