@@ -11,6 +11,8 @@
 
 namespace phf {
 
+static constexpr std::size_t not_found = (unsigned int)(-1);
+
 //
 // A minimal perfect hash function object.
 //
@@ -27,8 +29,6 @@ public:
 	using bitset_value_type = typename bitset_type::value_type;
 
 	static constexpr rank_type count = hasher_type::count;
-
-	static constexpr rank_type not_found = -1;
 
 	static constexpr rank_type block_nbits = 256;
 	static constexpr rank_type value_nbits = 8 * sizeof(bitset_value_type);
@@ -70,7 +70,7 @@ public:
 		return max_rank_;
 	}
 
-	rank_type operator[](const key_type &key) const
+	std::size_t operator[](const key_type &key) const
 	{
 		hasher_ = key;
 
