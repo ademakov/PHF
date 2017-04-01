@@ -181,6 +181,7 @@ public:
 				ctx.max_label_size = size;
 		}
 
+		std::cout << "#include \"phf/mph.h\"\n\n";
 		std::cout << "#include \"public-suffix-types.h\"\n\n";
 		std::cout << "using namespace public_suffix;\n\n";
 		std::cout << "namespace {\n\n";
@@ -210,6 +211,8 @@ public:
 		for (auto &label : first_level_)
 			std::cout << "\t{\"" << label << "\", 0, Rule::kWildcard},\n";
 		std::cout << "};\n\n";
+
+		mph->emit(std::cout, "second_level_index", "std::string", "Fnv64");
 
 		std::cout << "} // namespace\n";
 	}
