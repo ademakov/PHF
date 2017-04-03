@@ -58,7 +58,10 @@ public:
 		return hash(key_, seeds_[index]);
 	}
 
-	const seeds_array& seeds() const { return seeds_; }
+	const seeds_array &seeds() const
+	{
+		return seeds_;
+	}
 
 private:
 	template <typename H = base_hasher, typename K = key_type,

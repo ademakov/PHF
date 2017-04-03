@@ -5,9 +5,9 @@
 
 #ifdef __has_include
 // clang-format off
-#if __has_include(<experimental/type_traits>)
-# include <experimental/type_traits>
-#endif
+# if __has_include(<experimental/type_traits>)
+#  include <experimental/type_traits>
+# endif
 // clang-format on
 #endif
 

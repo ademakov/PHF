@@ -11,7 +11,7 @@
 
 namespace phf {
 
-static constexpr std::size_t not_found = (unsigned int)(-1);
+static constexpr std::size_t not_found = (unsigned int) (-1);
 
 //
 // A minimal perfect hash function object.
@@ -34,7 +34,7 @@ public:
 	static constexpr rank_type value_nbits = 8 * sizeof(bitset_value_type);
 	static constexpr rank_type block_nvalues = block_nbits / value_nbits;
 
-	static_assert(value_nbits == 64);
+	static_assert(value_nbits == 64, "invalid value type");
 
 	minimal_perfect_hash(const hasher_type &hasher, std::array<rank_type, count> levels,
 			     bitset_type &&bitset)
@@ -138,8 +138,10 @@ public:
 		os << "\tusing iterator = std::uint64_t *;\n";
 		os << "\tusing const_iterator = const std::uint64_t *;\n";
 		os << "\tstd::size_t size() { return static_bitset_data.size(); }\n";
-		os << "\tvalue_type& operator[](std::size_t i) { return static_bitset_data[i]; }\n";
-		os << "\tconst value_type& operator[](std::size_t i) const { return static_bitset_data[i]; }\n";
+		os << "\tvalue_type& operator[](std::size_t i) { return static_bitset_data[i]; "
+		      "}\n";
+		os << "\tconst value_type& operator[](std::size_t i) const { return "
+		      "static_bitset_data[i]; }\n";
 		os << "};\n\n";
 		os << "struct mph : " << mph_base << " {\n";
 		os << "\tmph() : " << mph_base
