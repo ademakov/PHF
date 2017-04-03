@@ -208,7 +208,7 @@ public:
 				  << "\", Rule::kRegular, true, 0, nullptr},\n";
 		std::cout << "};\n\n";
 
-		mph->emit(std::cout, "second_level_index", "std::string", "Fnv64");
+		mph->emit(std::cout, "second_level_index", "string_view", "Fnv64");
 
 		std::cout << "} // namespace\n";
 	}
@@ -232,11 +232,8 @@ main(int ac, char *av[]) try {
 
 	SuffixRoot root;
 
-	for (;;) {
-		std::string line;
-		if (!std::getline(std::cin, line))
-			break;
-
+	std::string line;
+	while (std::getline(std::cin, line)) {
 		// Trim everything after the first white space.
 		std::string data = line.substr(0, line.find_first_of(" \t\r"));
 		// Skip empty lines and comments.

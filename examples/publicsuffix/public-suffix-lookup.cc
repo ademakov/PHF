@@ -9,49 +9,50 @@
 using namespace phf;
 using namespace public_suffix;
 
-Node*
-lookup_first_level(const std::string &label)
+Node *
+lookup_first_level(string_view label)
 {
 	auto begin = &first_level_nodes[0];
-	auto end = &first_level_nodes[0] + sizeof(first_level_nodes) / sizeof(first_level_nodes[0]);
-	auto it = std::find_if(begin, end, [label](Node& x) { return label == x.label; });
+	auto end = &first_level_nodes[0]
+		   + sizeof(first_level_nodes) / sizeof(first_level_nodes[0]);
+	auto it = std::find_if(begin, end, [label](Node &x) { return label == x.label; });
 	if (it == end)
 		return nullptr;
 
 	return it;
 }
 
-Node*
-lookup_second_level(const std::string &label)
+Node *
+lookup_second_level(string_view label)
 {
 	auto rank = second_level_index::instance[label];
 	if (rank == phf::not_found)
 		return nullptr;
 
-	Node* node = &second_level_nodes[rank];
+	Node *node = &second_level_nodes[rank];
 	if (label != node->label)
 		return nullptr;
 
 	return node;
 }
 
-Node*
-lookup_next_level(Node *node, const std::string &label)
+Node *
+lookup_next_level(Node *node, string_view label)
 {
 	if (node->size == 0)
 		return nullptr;
 
 	auto begin = node->node;
 	auto end = node->node + node->size;
-	auto it = std::find_if(begin, end, [label](Node& x) { return label == x.label; });
+	auto it = std::find_if(begin, end, [label](Node &x) { return label == x.label; });
 	if (it == end)
 		return nullptr;
 
 	return it;
 }
 
-std::string
-lookup(const std::string &name)
+string_view
+lookup(string_view name)
 {
 	// Check if the name contains at least one dot.
 	auto last_dot = name.find_last_of('.');
@@ -61,7 +62,7 @@ lookup(const std::string &name)
 	// Check if the name contains exactly one dot.
 	auto next_dot = name.find_last_of('.', last_dot - 1);
 	if (next_dot == std::string::npos) {
-		Node* node = lookup_second_level(name);
+		Node *node = lookup_second_level(name);
 		if (node && node->rule == Rule::kException)
 			return name.substr(last_dot + 1);
 		if (!node || node->rule == Rule::kDefault) {
@@ -78,7 +79,7 @@ lookup(const std::string &name)
 
 	// Step by step verify labels in the name with multiple dots.
 	auto label = name.substr(next_dot + 1);
-	Node* node = lookup_second_level(label);
+	Node *node = lookup_second_level(label);
 	while (node) {
 		if (node->rule == Rule::kException)
 			verified = last_dot;
@@ -90,7 +91,7 @@ lookup(const std::string &name)
 		next_dot = name.find_last_of('.', last_dot - 1);
 		if (next_dot == std::string::npos) {
 			label = name.substr(0, last_dot);
-			Node* next = lookup_next_level(node, label);
+			Node *next = lookup_next_level(node, label);
 			if (next && next->rule == Rule::kException)
 				return name.substr(last_dot + 1);
 			if (!wildcard && (!next || next->rule == Rule::kDefault))
@@ -116,7 +117,7 @@ main(int ac, char *av[])
 	}
 
 	for (--ac, ++av; ac; --ac, ++av) {
-		std::string suffix = lookup(av[0]);
+		auto suffix = lookup(av[0]);
 		std::cout << av[0] << ' ' << suffix << '\n';
 	}
 
