@@ -113,25 +113,32 @@ public:
 	void emit(std::ostream &os, const std::string &name, const std::string &key_type_name,
 		  const std::string &hasher_type_name)
 	{
-		std::string mph_base = "phf::minimal_perfect_hash<static_count, "
-				       + key_type_name + ", " + hasher_type_name
-				       + ", std::size_t, static_bitset>";
+		// Find out how many levels are really needed.
+		std::size_t required_count = count;
+		while (required_count > 1 && levels_[required_count - 1] == 0)
+			--required_count;
+
+		std::string emit_count = std::to_string(required_count);
+		std::string emit_class = "phf::minimal_perfect_hash<";
+		emit_class += emit_count + ", " + key_type_name + ", " + hasher_type_name;
+		emit_class += ", std::size_t, static_bitset, ";
+		emit_class += extra_keys_.empty() ? "false>" : "true>";
 
 		os << "namespace " << name << " {\n\n";
-		os << "static constexpr std::size_t static_count = " << count << ";\n\n";
 		os << "static constexpr std::size_t static_bitset_size = " << bitset_.size()
 		   << ";\n\n";
-		os << "phf::hasher<static_count, " << key_type_name << ", " << hasher_type_name
-		   << "> static_hasher(std::array<std::uint64_t, static_count>{0x" << std::hex;
-		for (std::size_t i = 0; i < count; i++) {
+		os << "phf::hasher<" << emit_count << ", " << key_type_name << ", "
+		   << hasher_type_name << "> static_hasher(std::array<std::uint64_t, "
+		   << emit_count << ">{0x" << std::hex;
+		for (std::size_t i = 0; i < required_count; i++) {
 			os << hasher_.seeds()[i];
-			if (i != (count - 1))
+			if (i != (required_count - 1))
 				os << ", 0x";
 		}
 		os << std::dec << "});\n\n";
-		os << "std::array<std::size_t, static_count> static_levels = {";
-		for (auto level : levels_)
-			os << level << ", ";
+		os << "std::array<std::size_t, " << emit_count << "> static_levels = {";
+		for (std::size_t i = 0; i < required_count; i++)
+			os << levels_[i] << ", ";
 		os << "};\n\n";
 		os << "std::array<std::uint64_t, static_bitset_size> static_bitset_data = {\n";
 		for (auto value : bitset_)
@@ -147,8 +154,8 @@ public:
 		os << "\tconst value_type& operator[](std::size_t i) const { return "
 		      "static_bitset_data[i]; }\n";
 		os << "};\n\n";
-		os << "struct mph : " << mph_base << " {\n";
-		os << "\tmph() : " << mph_base
+		os << "struct mph : " << emit_class << " {\n";
+		os << "\tmph() : " << emit_class
 		   << "(static_hasher, static_levels, static_bitset())"
 		   << " {\n";
 		os << "\t}\n";
