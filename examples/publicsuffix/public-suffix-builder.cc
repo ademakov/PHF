@@ -26,25 +26,28 @@ struct BuildContext
 class Suffix
 {
 public:
-	Suffix(Rule rule, const std::string &label) : rule_(rule), label_(label)
+	Suffix(bool wildcard, Rule rule, const std::string &label)
+		: rule_(rule), wildcard_(wildcard), label_(label)
 	{
+		if (wildcard_ && rule_ != Rule::kDefault)
+			throw std::invalid_argument("wrong rule");
 	}
 
-	auto GetSuffix(const std::string &label)
+	std::vector<Suffix>::iterator GetSuffix(const std::string &label)
 	{
-		return std::find_if(
-			next_level_.begin(), next_level_.end(),
-			[&label](const Suffix &suffix) { return suffix.label_ == label; });
+		return std::find_if(next_.begin(), next_.end(), [&label](const Suffix &suffix) {
+			return suffix.label_ == label;
+		});
 	}
 
-	void AddSuffix(Rule rule, const std::string &next, const std::string &first,
-		       const std::string &rest)
+	void AddSuffix(bool wildcard, Rule rule, const std::string &next,
+		       const std::string &first, const std::string &rest)
 	{
 		auto delim = next.find_last_of('.');
 		if (delim == std::string::npos) {
 			auto it = GetSuffix(next);
-			if (it == next_level_.end())
-				next_level_.emplace_back(rule, next);
+			if (it == next_.end())
+				next_.emplace_back(wildcard, rule, next);
 			else if (it->rule_ != Rule::kDefault)
 				throw std::runtime_error("Duplicate name: " + rest + "."
 							 + first);
@@ -54,29 +57,13 @@ public:
 			std::string last = next.substr(delim + 1);
 			std::string more = next.substr(0, delim);
 			auto it = GetSuffix(last);
-			if (it == next_level_.end()) {
-				next_level_.emplace_back(Rule::kDefault, last);
-				next_level_.back().AddSuffix(rule, more, first, rest);
+			if (it == next_.end()) {
+				next_.emplace_back(false, Rule::kDefault, last);
+				next_.back().AddSuffix(wildcard, rule, more, first, rest);
 			} else {
-				it->AddSuffix(rule, more, first, rest);
+				it->AddSuffix(wildcard, rule, more, first, rest);
 			}
 		}
-	}
-
-	void Dump(std::ostream &stream, size_t level) const
-	{
-		stream << "// ";
-		for (size_t i = 0; i < level; i++)
-			stream << "  ";
-		if (rule_ == Rule::kException)
-			stream << '!';
-		else if (rule_ == Rule::kWildcard)
-			stream << "*.";
-		stream << label_;
-		stream << "\n";
-
-		for (const auto &suffix : next_level_)
-			suffix.Dump(stream, level + 1);
 	}
 
 	void BuildPrepare(BuildContext &ctx)
@@ -85,9 +72,9 @@ public:
 		if (ctx.max_label_size < size)
 			ctx.max_label_size = size;
 
-		if (!next_level_.empty()) {
-			for (auto &suffix : next_level_)
-				suffix.BuildPrepare(ctx);
+		if (!next_.empty()) {
+			for (auto &s : next_)
+				s.BuildPrepare(ctx);
 
 			auto aux_table_no = ctx.aux_tables++;
 			node_ = "node_" + std::to_string(aux_table_no);
@@ -96,18 +83,18 @@ public:
 
 	void BuildNode()
 	{
-		if (!next_level_.empty()) {
-			for (auto &suffix : next_level_)
-				suffix.BuildNode();
+		if (!next_.empty()) {
+			for (auto &s : next_)
+				s.BuildNode();
 
 			std::cout << "Node " << node_ << "[] = {\n";
-			for (auto &suffix : next_level_) {
-				std::cout << "\t{\"" << suffix.label_ << "\", "
-					  << suffix.next_level_.size() << ", " << suffix.rule_;
-				if (!suffix.next_level_.empty())
-					std::cout << ", " << suffix.node_;
+			for (auto &s : next_) {
+				std::cout << "\t{\"" << s.label_ << "\", " << s.rule_ << ", "
+					  << s.wildcard_ << ", ";
+				if (!s.next_.empty())
+					std::cout << s.next_.size() << ", " << s.node_;
 				else
-					std::cout << ", nullptr";
+					std::cout << "0, nullptr";
 				std::cout << "},\n";
 			}
 			std::cout << "};\n\n";
@@ -116,8 +103,9 @@ public:
 
 private:
 	Rule rule_;
+	bool wildcard_;
 	std::string label_;
-	std::vector<Suffix> next_level_;
+	std::vector<Suffix> next_;
 
 	std::string node_;
 
@@ -136,23 +124,25 @@ public:
 		first_level_.emplace_back(label);
 	}
 
-	void AddDouble(Rule rule, const std::string &label)
+	void AddDouble(bool wildcard, Rule rule, const std::string &label)
 	{
 		auto it = second_level_.find(label);
 		if (it == second_level_.end())
-			second_level_.emplace(label, Suffix(rule, label));
+			second_level_.emplace(label, Suffix(wildcard, rule, label));
 		else if (it->second.rule_ != Rule::kDefault)
 			throw std::runtime_error("Duplicate name: " + label);
 		else
 			it->second.rule_ = rule;
 	}
 
-	void AddMultiple(Rule rule, const std::string &first, const std::string &rest)
+	void AddMultiple(bool wildcard, Rule rule, const std::string &first,
+			 const std::string &rest)
 	{
 		auto it = second_level_.find(first);
 		if (it == second_level_.end())
-			it = second_level_.emplace(first, Suffix(Rule::kDefault, first)).first;
-		it->second.AddSuffix(rule, rest, first, rest);
+			it = second_level_.emplace(first, Suffix(false, Rule::kDefault, first))
+				     .first;
+		it->second.AddSuffix(wildcard, rule, rest, first, rest);
 	}
 
 	void BuildMPHF()
@@ -174,8 +164,8 @@ public:
 		}
 
 		BuildContext ctx;
-		for (auto suffix : index) {
-			suffix->BuildPrepare(ctx);
+		for (Suffix *s : index) {
+			s->BuildPrepare(ctx);
 		}
 		for (auto &label : first_level_) {
 			auto size = label.size() + 1;
@@ -189,47 +179,38 @@ public:
 		std::cout << "namespace {\n\n";
 		std::cout << "struct Node {\n";
 		std::cout << "\tchar label[" << ctx.max_label_size << "];\n";
-		std::cout << "\tuint8_t size;\n";
 		std::cout << "\tRule rule;\n";
+		std::cout << "\tbool wildcard;\n";
+		std::cout << "\tuint16_t size;\n";
 		std::cout << "\tNode* node;\n";
 		std::cout << "};\n\n";
 
-		for (auto &suffix : index) {
-			if (!suffix->next_level_.empty())
-				suffix->BuildNode();
+		for (Suffix *s : index) {
+			if (!s->next_.empty())
+				s->BuildNode();
 		}
 
 		std::cout << "Node second_level_nodes[] = {\n";
-		for (auto suffix : index) {
-			std::cout << "\t{\"" << suffix->label_ << "\", "
-				  << suffix->next_level_.size() << ", " << suffix->rule_;
-			if (!suffix->next_level_.empty())
-				std::cout << ", " << suffix->node_;
+		for (Suffix *s : index) {
+			std::cout << "\t{\"" << s->label_ << "\", " << s->rule_ << ", "
+				  << s->wildcard_ << ", ";
+			if (!s->next_.empty())
+				std::cout << s->next_.size() << ", " << s->node_;
 			else
-				std::cout << ", nullptr";
+				std::cout << "0, nullptr";
 			std::cout << "},\n";
 		}
 		std::cout << "};\n\n";
 
 		std::cout << "Node first_level_nodes[] = {\n";
 		for (auto &label : first_level_)
-			std::cout << "\t{\"" << label << "\", 0, Rule::kWildcard, nullptr},\n";
+			std::cout << "\t{\"" << label
+				  << "\", Rule::kRegular, true, 0, nullptr},\n";
 		std::cout << "};\n\n";
 
 		mph->emit(std::cout, "second_level_index", "std::string", "Fnv64");
 
 		std::cout << "} // namespace\n";
-	}
-
-	void Dump(std::ostream &stream) const
-	{
-		stream << "//\n";
-		for (const auto &label : first_level_)
-			stream << "// *." << label << "\n";
-		stream << "//\n";
-		for (const auto &suffix : second_level_)
-			suffix.second.Dump(stream, 0);
-		stream << "//\n";
 	}
 
 private:
@@ -275,6 +256,7 @@ main(int ac, char *av[]) try {
 
 		// Presume the line contains just a regular host name.
 		Rule rule = Rule::kRegular;
+		bool wildcard = false;
 		size_t skip = 0;
 
 		// Check for special cases: a wildcard or exception rule.
@@ -282,7 +264,8 @@ main(int ac, char *av[]) try {
 			rule = Rule::kException;
 			skip = 1;
 		} else if (data.front() == '*') {
-			rule = Rule::kWildcard;
+			rule = Rule::kDefault;
+			wildcard = true;
 			for (++skip; skip < data.size(); skip += 2) {
 				if (data[skip] != '.')
 					throw std::runtime_error("Invalid line: " + line);
@@ -321,7 +304,7 @@ main(int ac, char *av[]) try {
 		if (delim == std::string::npos) {
 			// If this is a trivial TLD then don't bother with it.
 			// However remember it if it as a wildcard rule.
-			if (rule == Rule::kWildcard)
+			if (wildcard)
 				root.AddSingle(data);
 		} else {
 			if (data[delim - 1] == '.')
@@ -329,14 +312,13 @@ main(int ac, char *av[]) try {
 
 			delim = data.find_last_of('.', delim - 1);
 			if (delim == std::string::npos)
-				root.AddDouble(rule, data);
+				root.AddDouble(wildcard, rule, data);
 			else
-				root.AddMultiple(rule, data.substr(delim + 1),
+				root.AddMultiple(wildcard, rule, data.substr(delim + 1),
 						 data.substr(0, delim));
 		}
 	}
 
-	//root.Dump(std::cout);
 	root.BuildMPHF();
 
 	return EXIT_SUCCESS;

@@ -7,10 +7,9 @@
 
 namespace public_suffix {
 
-enum class Rule {
+enum class Rule : uint8_t {
 	kDefault,
 	kRegular,
-	kWildcard,
 	kException,
 };
 
@@ -24,9 +23,6 @@ operator<<(std::ostream &os, Rule rule)
 		break;
 	case Rule::kRegular:
 		cp = "Rule::kRegular";
-		break;
-	case Rule::kWildcard:
-		cp = "Rule::kWildcard";
 		break;
 	case Rule::kException:
 		cp = "Rule::kException";

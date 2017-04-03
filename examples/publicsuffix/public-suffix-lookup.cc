@@ -17,6 +17,7 @@ lookup_first_level(const std::string &label)
 	auto it = std::find_if(begin, end, [label](Node& x) { return label == x.label; });
 	if (it == end)
 		return nullptr;
+
 	return it;
 }
 
@@ -30,32 +31,80 @@ lookup_second_level(const std::string &label)
 	Node* node = &second_level_nodes[rank];
 	if (label != node->label)
 		return nullptr;
-	if (node->rule == Rule::kDefault || node->rule == Rule::kWildcard)
-		return nullptr;
+
 	return node;
+}
+
+Node*
+lookup_next_level(Node *node, const std::string &label)
+{
+	if (node->size == 0)
+		return nullptr;
+
+	auto begin = node->node;
+	auto end = node->node + node->size;
+	auto it = std::find_if(begin, end, [label](Node& x) { return label == x.label; });
+	if (it == end)
+		return nullptr;
+
+	return it;
 }
 
 std::string
 lookup(const std::string &name)
 {
-	auto dot_1 = name.find_last_of('.');
-	if (dot_1 == std::string::npos)
+	// Check if the name contains at least one dot.
+	auto last_dot = name.find_last_of('.');
+	if (last_dot == std::string::npos)
 		return name;
 
-	auto dot_2 = name.find_last_of('.', dot_1 - 1);
-	if (dot_2 == std::string::npos) {
-		if (!lookup_second_level(name)) {
-			auto label = name.substr(dot_1 + 1);
+	// Check if the name contains exactly one dot.
+	auto next_dot = name.find_last_of('.', last_dot - 1);
+	if (next_dot == std::string::npos) {
+		Node* node = lookup_second_level(name);
+		if (node && node->rule == Rule::kException)
+			return name.substr(last_dot + 1);
+		if (!node || node->rule == Rule::kDefault) {
+			auto label = name.substr(last_dot + 1);
 			if (!lookup_first_level(label))
 				return label;
 		}
 		return name;
 	}
 
-	auto rank = second_level_index::instance[name.substr(dot_2 + 1)];
-	if (rank != phf::not_found)
-		return std::to_string(rank);
-	return "xx";
+	// The name part matched so far.
+	auto verified = last_dot;
+	bool wildcard = false;
+
+	// Step by step verify labels in the name with multiple dots.
+	auto label = name.substr(next_dot + 1);
+	Node* node = lookup_second_level(label);
+	while (node) {
+		if (node->rule == Rule::kException)
+			verified = last_dot;
+		else if (node->rule == Rule::kRegular || wildcard)
+			verified = next_dot;
+		wildcard = node->wildcard;
+		last_dot = next_dot;
+
+		next_dot = name.find_last_of('.', last_dot - 1);
+		if (next_dot == std::string::npos) {
+			label = name.substr(0, last_dot);
+			Node* next = lookup_next_level(node, label);
+			if (next && next->rule == Rule::kException)
+				return name.substr(last_dot + 1);
+			if (!wildcard && (!next || next->rule == Rule::kDefault))
+				return name.substr(verified + 1);
+			return name;
+		}
+
+		label = name.substr(next_dot + 1, last_dot - next_dot - 1);
+		node = lookup_next_level(node, label);
+	}
+
+	if (wildcard)
+		verified = next_dot;
+	return name.substr(verified + 1);
 }
 
 int
