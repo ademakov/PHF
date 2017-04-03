@@ -41,6 +41,11 @@ public:
 			     bitset_type &&bitset)
 		: hasher_(hasher), levels_(levels), bitset_(std::move(bitset)), max_rank_(0)
 	{
+		for (auto level : levels_) {
+			if (level != 0 && (level & (level - 1)) != 0)
+				throw std::invalid_argument("each level must be a power of 2");
+		}
+
 		size_t nblocks = (bitset_.size() * value_nbits + block_nbits - 1) / block_nbits;
 		block_ranks_.resize(nblocks);
 
@@ -82,7 +87,8 @@ public:
 				continue;
 
 			auto hash = hasher_[level];
-			auto bit_index = base + hash % size;
+			auto bit_index = base + (hash & (size - 1));
+			base += size;
 
 			auto index = bit_index / value_nbits;
 			auto shift = bit_index % value_nbits;
@@ -97,8 +103,6 @@ public:
 					rank += __builtin_popcountll(bitset_[block_index]);
 				return block_ranks_[block] + rank;
 			}
-
-			base += size;
 		}
 
 		if (enable_extra_keys && !extra_keys_.empty()) {

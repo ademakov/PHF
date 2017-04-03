@@ -134,10 +134,14 @@ public:
 private:
 	void fill_level(size_t level)
 	{
-		// Choose the bitset size twice the number of keys rounding
-		// it to a 64-bit multiple.
+		// Compute the required bitset size.
 		std::size_t size = keys_.size() * gamma_;
-		size = (size + 63) & ~63;
+
+		// Round it to a power of two but no less than 64.
+		if (size < 64)
+			size = 64;
+		std::size_t nclear = __builtin_clzll((unsigned long long) (size - 1));
+		size = size_t{1} << (8 * sizeof(unsigned long long) - nclear);
 
 		level_bits_[level].clear();
 		level_bits_[level].resize(size);
