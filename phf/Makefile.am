@@ -4,4 +4,4 @@ include_HEADERS = \
 	detect.h \
 	hasher.h \
 	mph.h \
-	random.h
+	rng.h

@@ -1,5 +1,11 @@
-#ifndef PERFECT_HASH_RANDOM_H
-#define PERFECT_HASH_RANDOM_H
+//
+// The code in this file is free and unencumbered software released
+// into the public domain.
+//
+// <http://creativecommons.org/publicdomain/zero/1.0/>.
+//
+#ifndef PERFECT_HASH_RNG_H
+#define PERFECT_HASH_RNG_H
 
 #include <cstdint>
 #include <random>
@@ -7,7 +13,7 @@
 
 #include <x86intrin.h>
 
-namespace phf {
+namespace rng {
 
 //
 // Bitwise circular left shift.
@@ -140,6 +146,6 @@ struct rng128
 	}
 };
 
-} // namespace phf
+} // namespace rng
 
-#endif // PERFECT_HASH_RANDOM_H
+#endif // PERFECT_HASH_RNG_H

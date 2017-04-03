@@ -89,8 +89,8 @@ public:
 
 			std::cout << "Node " << node_ << "[] = {\n";
 			for (auto &s : next_) {
-				std::cout << "\t{\"" << s.label_ << "\", " << s.rule_ << ", "
-					  << s.wildcard_ << ", ";
+				std::cout << "\t{\"" << s.label_ << "\", " << s.label_.size()
+					  << ", " << s.rule_ << ", " << s.wildcard_ << ", ";
 				if (!s.next_.empty())
 					std::cout << s.next_.size() << ", " << s.node_;
 				else
@@ -147,7 +147,7 @@ public:
 
 	void BuildMPHF()
 	{
-		auto seed = phf::random_device_seed{}();
+		auto seed = rng::random_device_seed{}();
 		phf::builder<16, std::string, Fnv64> builder(4, seed);
 		for (const auto &suffix : second_level_)
 			builder.insert(suffix.second.label_);
@@ -179,6 +179,7 @@ public:
 		std::cout << "namespace {\n\n";
 		std::cout << "struct Node {\n";
 		std::cout << "\tchar label[" << ctx.max_label_size << "];\n";
+		std::cout << "\tuint16_t label_len;\n";
 		std::cout << "\tRule rule;\n";
 		std::cout << "\tbool wildcard;\n";
 		std::cout << "\tuint16_t size;\n";
@@ -192,8 +193,8 @@ public:
 
 		std::cout << "Node second_level_nodes[] = {\n";
 		for (Suffix *s : index) {
-			std::cout << "\t{\"" << s->label_ << "\", " << s->rule_ << ", "
-				  << s->wildcard_ << ", ";
+			std::cout << "\t{\"" << s->label_ << "\", " << s->label_.size() << ", "
+				  << s->rule_ << ", " << s->wildcard_ << ", ";
 			if (!s->next_.empty())
 				std::cout << s->next_.size() << ", " << s->node_;
 			else
@@ -204,8 +205,8 @@ public:
 
 		std::cout << "Node first_level_nodes[] = {\n";
 		for (auto &label : first_level_)
-			std::cout << "\t{\"" << label
-				  << "\", Rule::kRegular, true, 0, nullptr},\n";
+			std::cout << "\t{\"" << label << "\", " << label.size()
+				  << ", Rule::kRegular, true, 0, nullptr},\n";
 		std::cout << "};\n\n";
 
 		mph->emit(std::cout, "second_level_index", "string_view", "Fnv64");

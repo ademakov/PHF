@@ -16,7 +16,9 @@ lookup_first_level(string_view label)
 	auto begin = &first_level_nodes[0];
 	auto end = &first_level_nodes[0]
 		   + sizeof(first_level_nodes) / sizeof(first_level_nodes[0]);
-	auto it = std::find_if(begin, end, [label](Node &x) { return label == x.label; });
+	auto it = std::find_if(begin, end, [label](Node &x) {
+		return label == string_view(x.label, x.label_len);
+	});
 	if (it == end)
 		return nullptr;
 
@@ -31,7 +33,7 @@ lookup_second_level(string_view label)
 		return nullptr;
 
 	Node *node = &second_level_nodes[rank];
-	if (label != node->label)
+	if (label != string_view(node->label, node->label_len))
 		return nullptr;
 
 	return node;
@@ -45,7 +47,9 @@ lookup_next_level(Node *node, string_view label)
 
 	auto begin = node->node;
 	auto end = node->node + node->size;
-	auto it = std::find_if(begin, end, [label](Node &x) { return label == x.label; });
+	auto it = std::find_if(begin, end, [label](Node &x) {
+		return label == string_view(x.label, x.label_len);
+	});
 	if (it == end)
 		return nullptr;
 

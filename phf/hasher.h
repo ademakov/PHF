@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "detect.h"
-#include "random.h"
+#include "rng.h"
 
 namespace phf {
 
@@ -25,7 +25,7 @@ public:
 	using base_hasher = Hash;
 
 	using result_type = std::size_t;
-	using random_type = rng128::result_type;
+	using random_type = rng::rng128::result_type;
 
 	static constexpr std::size_t min_count = 2;
 	static constexpr std::size_t max_count = 256;
@@ -35,7 +35,7 @@ public:
 
 	hasher(random_type seed = 1)
 	{
-		rng128 rng(seed);
+		rng::rng128 rng(seed);
 		for (auto &s : seeds_)
 			s = rng();
 	}
