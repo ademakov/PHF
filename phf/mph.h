@@ -17,7 +17,8 @@ static constexpr std::size_t not_found = (unsigned int) (-1);
 // A minimal perfect hash function object.
 //
 template <std::size_t N, typename Key, typename Hash = std::hash<Key>,
-	  typename Rank = std::size_t, typename Bitset = std::vector<std::uint64_t>>
+	  typename Rank = std::size_t, typename Bitset = std::vector<std::uint64_t>,
+	  bool enable_extra_keys = true>
 class minimal_perfect_hash
 {
 public:
@@ -100,10 +101,13 @@ public:
 			base += size;
 		}
 
-		auto it = extra_keys_.find(key);
-		if (it == extra_keys_.end())
-			return not_found;
-		return it->second;
+		if (enable_extra_keys && !extra_keys_.empty()) {
+			auto it = extra_keys_.find(key);
+			if (it != extra_keys_.end())
+				return it->second;
+		}
+
+		return not_found;
 	}
 
 	void emit(std::ostream &os, const std::string &name, const std::string &key_type_name,
