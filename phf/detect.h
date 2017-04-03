@@ -20,11 +20,18 @@ namespace phf {
 // As this interface is only implemented by gcc 6.* provide a simplified
 // version of this interface for others.
 //
+// To also support gcc 4.9 that does not support variable templates put
+// them into struct templates.
+//
 
 #ifdef __cpp_lib_experimental_detect
 
 template <typename Res, template <typename...> class Op, typename... Args>
-constexpr bool is_detected_exact_v = std::experimental::is_detected_exact_v<Res, Op, Args...>;
+struct detect
+{
+	static constexpr bool is_exact
+		= std::experimental::is_detected_exact_v<Res, Op, Args...>;
+};
 
 #else
 
@@ -61,8 +68,11 @@ struct detected_t<void_t<Op<Args...>>, Op, Args...>
 };
 
 template <typename Res, template <typename...> class Op, typename... Args>
-constexpr bool is_detected_exact_v
-	= std::is_same<Res, typename detected_t<void, Op, Args...>::type>::value;
+struct detect
+{
+	static constexpr bool is_exact
+		= std::is_same<Res, typename detected_t<void, Op, Args...>::type>::value;
+};
 
 #endif
 
@@ -74,8 +84,6 @@ constexpr bool is_detected_exact_v
 //
 template <typename H, typename K>
 using standard_hasher_t = decltype(std::declval<H>()(std::declval<K>()));
-template <typename H, typename K>
-constexpr bool is_standard_hasher_v = is_detected_exact_v<std::size_t, standard_hasher_t, H, K>;
 
 //
 // Template utility that checks if a given type provides a hash operator
@@ -85,8 +93,15 @@ constexpr bool is_standard_hasher_v = is_detected_exact_v<std::size_t, standard_
 //
 template <typename H, typename K>
 using extended_hasher_t = decltype(std::declval<H>()(std::declval<K>(), 1u));
+
 template <typename H, typename K>
-constexpr bool is_extended_hasher_v = is_detected_exact_v<std::size_t, extended_hasher_t, H, K>;
+struct hasher_detect
+{
+	static constexpr bool is_standard
+		= detect<std::size_t, standard_hasher_t, H, K>::is_exact;
+	static constexpr bool is_extended
+		= detect<std::size_t, extended_hasher_t, H, K>::is_exact;
+};
 
 } // namespace phf
 

@@ -20,6 +20,19 @@ namespace phf {
 template <std::size_t N, typename Key, typename Hash = std::hash<Key>>
 class hasher : private Hash
 {
+	// Workarounds for gcc 4.9 where std::min() and std::max() are const
+	// rather than constexpr despite the -std=c++14 compiler flag.
+
+	template<typename T>
+	static constexpr T min(T a, T b) {
+		return a < b ? a : b;
+	}
+
+	template<typename T>
+	static constexpr T max(T a, T b) {
+		return a > b ? a : b;
+	}
+
 public:
 	using key_type = Key;
 	using base_hasher = Hash;
@@ -29,7 +42,7 @@ public:
 
 	static constexpr std::size_t min_count = 2;
 	static constexpr std::size_t max_count = 256;
-	static constexpr std::size_t count = std::min(std::max(N, min_count), max_count);
+	static constexpr std::size_t count = min(max(N, min_count), max_count);
 
 	using seeds_array = std::array<random_type, count>;
 
@@ -65,14 +78,14 @@ public:
 
 private:
 	template <typename H = base_hasher, typename K = key_type,
-		  std::enable_if_t<is_extended_hasher_v<H, K>, int> = 0>
+		  std::enable_if_t<hasher_detect<H, K>::is_extended, int> = 0>
 	result_type hash(const key_type &key, random_type seed)
 	{
 		return base_hasher::operator()(key, seed);
 	}
 
 	template <typename H = base_hasher, typename K = key_type,
-		  std::enable_if_t<not is_extended_hasher_v<H, K>, int> = 0>
+		  std::enable_if_t<not hasher_detect<H, K>::is_extended, int> = 0>
 	result_type hash(const key_type &key, random_type seed)
 	{
 		// TODO: Do something better.
