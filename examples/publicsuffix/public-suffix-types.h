@@ -51,10 +51,12 @@ operator<<(std::ostream &os, Rule rule)
 
 struct Fnv64
 {
+	using result_type = std::uint64_t;
+
 	static constexpr std::uint64_t FNV1_64_INIT = UINT64_C(0xcbf29ce484222325);
 	static constexpr std::uint64_t FNV_64_PRIME = UINT64_C(0x100000001b3);
 
-	std::size_t operator()(string_view data, std::uint64_t hval)
+	result_type operator()(string_view data, std::uint64_t hval)
 	{
 		auto *bp = reinterpret_cast<const unsigned char *>(data.data());
 		auto *ep = reinterpret_cast<const unsigned char *>(data.data()) + data.size();
@@ -63,6 +65,11 @@ struct Fnv64
 			hval *= FNV_64_PRIME;
 		}
 		return hval;
+	}
+
+	result_type operator()(string_view data)
+	{
+		return operator()(data, FNV1_64_INIT);
 	}
 };
 

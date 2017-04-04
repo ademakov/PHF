@@ -94,13 +94,11 @@ using standard_hasher_t = decltype(std::declval<H>()(std::declval<K>()));
 template <typename H, typename K>
 using extended_hasher_t = decltype(std::declval<H>()(std::declval<K>(), 1u));
 
-template <typename H, typename K>
+template <typename H, typename K, typename V>
 struct hasher_detect
 {
-	static constexpr bool is_standard
-		= detect<std::size_t, standard_hasher_t, H, K>::is_exact;
-	static constexpr bool is_extended
-		= detect<std::size_t, extended_hasher_t, H, K>::is_exact;
+	static constexpr bool is_standard = detect<V, standard_hasher_t, H, K>::is_exact;
+	static constexpr bool is_extended = detect<V, extended_hasher_t, H, K>::is_exact;
 };
 
 } // namespace phf
