@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -323,17 +324,14 @@ private:
 	std::vector<std::string> first_level_;
 };
 
-int
-main(int ac, char *av[]) try {
-	if (ac != 1) {
-		std::cerr << "Usage: " << av[0] << "<input-file >output-file\n";
-		return EXIT_FAILURE;
-	}
 
-	SuffixRoot root;
+void
+LoadFile(SuffixRoot &root, const char *name)
+{
+	std::ifstream in(name);
 
 	std::string line;
-	while (std::getline(std::cin, line)) {
+	while (std::getline(in, line)) {
 		// Trim everything after the first white space.
 		std::string data = line.substr(0, line.find_first_of(" \t\r"));
 		// Skip empty lines and comments.
@@ -415,6 +413,18 @@ main(int ac, char *av[]) try {
 						 data.substr(delim + 1));
 		}
 	}
+}
+
+int
+main(int ac, char *av[]) try {
+	if (ac < 2) {
+		std::cerr << "Usage: " << av[0] << "input-file... >output-file\n";
+		return EXIT_FAILURE;
+	}
+
+	SuffixRoot root;
+	for (char **names = &av[1]; *names; ++names)
+		LoadFile(root, *names);
 
 	root.BuildMPHF();
 

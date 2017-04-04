@@ -13,4 +13,4 @@ BUILT_SOURCES = public-suffix-tables.h
 CLEANFILES = public-suffix-tables.h
 
 public-suffix-tables.h: public-suffix-builder
-	./public-suffix-builder <public_suffix_list.dat >public-suffix-tables.h
+	./public-suffix-builder public_suffix_list.dat supplementary_list.dat >public-suffix-tables.h
