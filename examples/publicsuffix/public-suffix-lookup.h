@@ -49,23 +49,21 @@ lookup(string_view name)
 	if (last_dot == std::string::npos)
 		return name;
 
+	// The suffix checked so far.
+	auto suffix = name.substr(last_dot + 1);
+	bool wildcard = lookup_first(suffix);
+	auto verified = last_dot;
+
 	// Check if the name contains exactly one dot.
 	auto next_dot = name.find_last_of('.', last_dot - 1);
 	if (next_dot == std::string::npos) {
 		Node *node = lookup_second_level(name);
 		if (node && node->rule == Rule::kException)
-			return name.substr(last_dot + 1);
-		if (!node || node->rule == Rule::kDefault) {
-			auto label = name.substr(last_dot + 1);
-			if (!lookup_first(label))
-				return label;
-		}
-		return name;
+			return suffix;
+		if (wildcard || (node && node->rule == Rule::kRegular))
+			return name;
+		return suffix;
 	}
-
-	// The name part matched so far.
-	auto verified = last_dot;
-	bool wildcard = false;
 
 	// Step by step verify labels in the name with multiple dots.
 	auto label = name.substr(next_dot + 1);
