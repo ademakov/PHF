@@ -54,6 +54,12 @@ public:
 	}
 
 	void Emit(const TrieContext& ctx) {
+		if (ctx.max_size < ctx.min_size) {
+			Indent(1, "(void) s;");
+			Indent(1, "return " + ctx.not_found + ";");
+			return;
+		}
+
 		Indent(1, "const size_t n = s.size();");
 
 		auto s_max = std::to_string(ctx.max_size);
@@ -217,7 +223,7 @@ public:
 	{
 		auto it = std::find_if(first_level_.begin(), first_level_.end(),
 				       [&label](auto suffix) { return suffix == label; });
-		if (it == first_level_.end())
+		if (it != first_level_.end())
 			return;
 		first_level_.emplace_back(label);
 	}
