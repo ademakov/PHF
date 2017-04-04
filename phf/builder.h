@@ -1,6 +1,7 @@
 #ifndef PERFECT_HASH_BUILDER_H
 #define PERFECT_HASH_BUILDER_H
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -37,7 +38,8 @@ public:
 	{
 		nlevels_ = count;
 #if PHF_DEBUG > 0
-		std::array<std::size_t, count> level_ranks;
+		std::array<std::size_t, count> level_ranks = { 0 };
+		std::array<std::size_t, count> level_conflicts = { 0 };
 #endif
 
 		for (std::size_t level = 0; level < count; level++) {
@@ -48,33 +50,34 @@ public:
 
 			fill_level(level);
 
-			std::size_t rank = 0;
-
 			auto it = keys_.begin();
 			auto size = level_bits_[level].size();
 			while (it != keys_.end()) {
 				hasher_ = *it;
 				auto hash = hasher_[level];
-				std::size_t index = hash % size;
+				std::size_t index = hash & (size - 1);
 
 				if (level_bits_[level][index]) {
+#if PHF_DEBUG > 0
+					level_ranks[level]++;
 #if PHF_DEBUG > 1
 					if (size <= 128)
 						std::cerr << *it << " - (" << index << ' '
 							  << std::hex << hash << std::dec
 							  << ")\n";
 #endif
-
+#endif
 					keys_.erase(it++);
-					++rank;
 				} else {
+#if PHF_DEBUG > 0
+					level_conflicts[level]++;
 #if PHF_DEBUG > 1
 					if (size <= 128)
 						std::cerr << *it << " + (" << index << ' '
 							  << std::hex << hash << std::dec
 							  << ")\n";
 #endif
-
+#endif
 					++it;
 				}
 			}
@@ -82,15 +85,14 @@ public:
 #if PHF_DEBUG > 1
 			if (size <= 128)
 				std::cerr << "--\n";
-			level_ranks[level] = rank;
 #endif
 		}
 
 #if PHF_DEBUG > 0
 		std::cerr << nlevels_ << ' ' << keys_.size() << '\n';
 		for (std::size_t level = 0; level < nlevels_; level++) {
-			std::cerr << level_ranks[level] << '/' << level_bits_[level].size()
-				  << ' ';
+			std::cerr << level_ranks[level] << '/' << level_conflicts[level] << '/'
+				  << level_bits_[level].size() << ' ';
 		}
 		std::cerr << '\n';
 #endif
@@ -138,10 +140,9 @@ private:
 		std::size_t size = keys_.size() * gamma_;
 
 		// Round it to a power of two but no less than 64.
-		if (size < 64)
-			size = 64;
-		std::size_t nclear = __builtin_clzll((unsigned long long) (size - 1));
-		size = size_t{1} << (8 * sizeof(unsigned long long) - nclear);
+		unsigned long long s = std::max(size, std::size_t{64});
+		std::size_t nbits = (8 * sizeof(s) - __builtin_clzll(s - 1));
+		size = size_t{1} << nbits;
 
 		level_bits_[level].clear();
 		level_bits_[level].resize(size);
@@ -151,7 +152,11 @@ private:
 			hasher_ = key;
 
 			auto hash = hasher_[level];
-			std::size_t index = hash % size;
+			std::size_t index = hash & (size - 1);
+#if PHF_DEBUG > 2
+			std::cerr << std::hex << hash << ' ' << (size - 1) << ' ' << index
+				  << std::dec << '\n';
+#endif
 			if (collisions_[index])
 				continue;
 
