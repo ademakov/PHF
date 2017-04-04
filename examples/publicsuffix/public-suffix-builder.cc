@@ -146,7 +146,7 @@ public:
 			auto it = GetSuffix(next);
 			if (it == next_.end())
 				next_.emplace_back(wildcard, rule, next);
-			else if (it->rule_ != Rule::kDefault)
+			else if (it->rule_ != Rule::kDefault && it->rule_ != rule)
 				throw std::runtime_error("Duplicate name: " + rest + "."
 							 + first);
 			else
@@ -217,8 +217,8 @@ public:
 	{
 		auto it = std::find_if(first_level_.begin(), first_level_.end(),
 				       [&label](auto suffix) { return suffix == label; });
-		if (it != first_level_.end())
-			throw std::runtime_error("Duplicate name: " + label);
+		if (it == first_level_.end())
+			return;
 		first_level_.emplace_back(label);
 	}
 
@@ -227,7 +227,7 @@ public:
 		auto it = second_level_.find(label);
 		if (it == second_level_.end())
 			second_level_.emplace(label, Suffix(wildcard, rule, label));
-		else if (it->second.rule_ != Rule::kDefault)
+		else if (it->second.rule_ != Rule::kDefault && it->second.rule_ != rule)
 			throw std::runtime_error("Duplicate name: " + label);
 		else
 			it->second.rule_ = rule;
