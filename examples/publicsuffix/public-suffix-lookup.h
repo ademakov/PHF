@@ -11,21 +11,6 @@ namespace public_suffix {
 using namespace phf;
 
 static inline Node *
-lookup_first_level(string_view label)
-{
-	auto begin = &first_level_nodes[0];
-	auto end = &first_level_nodes[0]
-		   + sizeof(first_level_nodes) / sizeof(first_level_nodes[0]);
-	auto it = std::find_if(begin, end, [label](Node &x) {
-		return label == string_view(x.label, x.label_len);
-	});
-	if (it == end)
-		return nullptr;
-
-	return it;
-}
-
-static inline Node *
 lookup_second_level(string_view label)
 {
 	auto rank = second_level_index::instance[label];
@@ -72,7 +57,7 @@ lookup(string_view name)
 			return name.substr(last_dot + 1);
 		if (!node || node->rule == Rule::kDefault) {
 			auto label = name.substr(last_dot + 1);
-			if (!lookup_first_level(label))
+			if (!lookup_first(label))
 				return label;
 		}
 		return name;

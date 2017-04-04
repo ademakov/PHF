@@ -23,6 +23,103 @@ struct BuildContext
 	std::size_t max_label_size = 0;
 };
 
+struct TrieContext
+{
+	std::string not_found = "false";
+	std::size_t min_size = SIZE_MAX;
+	std::size_t max_size = 0;
+};
+
+class Trie
+{
+public:
+	void Insert(string_view s, const std::string& value) {
+		if (s.empty()) {
+			value_ = value;
+			return;
+		}
+
+		uint8_t c = s[0];
+		if (c > 127 || c < 32)
+			throw std::invalid_argument("invalid char");
+		c -= 32;
+
+		if (!next_[c]) {
+			next_[c] = std::make_unique<Trie>();
+			++count_;
+		}
+
+		next_[c]->Insert(s.substr(1), value);
+	}
+
+	void Emit(const TrieContext& ctx) {
+		Indent(1, "const size_t n = s.size();");
+
+		auto s_max = std::to_string(ctx.max_size);
+		Indent(1, "if (n > " + s_max + ")");
+		Indent(2, "return " + ctx.not_found + ";");
+
+		if (ctx.min_size) {
+			auto s_min = std::to_string(ctx.min_size);
+			Indent(1, "if (n < " + s_min + ")");
+			Indent(2, "return " + ctx.not_found + ";");
+		}
+
+		EmitNext(0, ctx);
+	}
+
+private:
+	size_t count_ = 0;
+	std::unique_ptr<Trie> next_[96];
+	std::string value_;
+
+	void Indent(std::size_t level, const std::string& line) {
+		while (level) {
+			std::cout << '\t';
+			--level;
+		}
+		std::cout << line << '\n';
+	}
+
+	void EmitNext(std::size_t index, const TrieContext& ctx) {
+		auto s_index = std::to_string(index);
+
+		if (index >= ctx.min_size) {
+			if (index < ctx.max_size) {
+				Indent(index + 1, "if (n == " + s_index + ")");
+				if (value_.empty())
+					Indent(index + 2, "return " + ctx.not_found + ";");
+				else
+					Indent(index + 2, "return " + value_ + ";");
+			} else {
+				Indent(index + 1, "return " + value_ + ";");
+			}
+		}
+
+		if (count_ == 1) {
+			for (int i = 0; i < 96; i++) {
+				if (next_[i].get()) {
+					char cs[2] = { (char)(i + 32), 0 };
+					Indent(index + 1, "if (s[" + s_index + "] == \'" + cs + "\')");
+					next_[i]->EmitNext(index + 1, ctx);
+				}
+			}
+			Indent(index + 1, "return " + ctx.not_found + ";");
+		} else if (count_ > 1) {
+			Indent(index + 1, "switch (s[" + s_index + "]) {");
+			for (int i = 0; i < 96; i++) {
+				if (next_[i].get()) {
+					char cs[2] = { (char)(i + 32), 0 };
+					Indent(index + 1, std::string("case \'") + cs + "\':");
+					next_[i]->EmitNext(index + 1, ctx);
+				}
+			}
+			Indent(index + 1, "}");
+			Indent(index + 1, "return " + ctx.not_found + ";");
+		}
+	}
+};
+
 class Suffix
 {
 public:
@@ -135,8 +232,8 @@ public:
 			it->second.rule_ = rule;
 	}
 
-	void AddMultiple(bool wildcard, Rule rule, const std::string &first,
-			 const std::string &rest)
+	void AddMultiple(bool wildcard, Rule rule, const std::string &rest,
+			 const std::string &first)
 	{
 		auto it = second_level_.find(first);
 		if (it == second_level_.end())
@@ -148,7 +245,7 @@ public:
 	void BuildMPHF()
 	{
 		auto seed = rng::random_device_seed{}();
-		phf::builder<16, std::string, Fnv64> builder(4, seed);
+		phf::builder<16, std::string, Fnv64> builder(3, seed);
 		for (const auto &suffix : second_level_)
 			builder.insert(suffix.second.label_);
 
@@ -166,11 +263,6 @@ public:
 		BuildContext ctx;
 		for (Suffix *s : index) {
 			s->BuildPrepare(ctx);
-		}
-		for (auto &label : first_level_) {
-			auto size = label.size() + 1;
-			if (ctx.max_label_size < size)
-				ctx.max_label_size = size;
 		}
 
 		std::cout << "#include \"phf/mph.h\"\n\n";
@@ -203,13 +295,20 @@ public:
 		}
 		std::cout << "};\n\n";
 
-		std::cout << "Node first_level_nodes[] = {\n";
-		for (auto &label : first_level_)
-			std::cout << "\t{\"" << label << "\", " << label.size()
-				  << ", Rule::kRegular, true, 0, nullptr},\n";
-		std::cout << "};\n\n";
-
 		mph->emit(std::cout, "second_level_index", "string_view", "Fnv64");
+
+		Trie first_level_trie;
+		TrieContext first_level_ctx;
+		for (auto &label : first_level_) {
+			first_level_trie.Insert(label, "true");
+			if (first_level_ctx.min_size > label.size())
+				first_level_ctx.min_size = label.size();
+			if (first_level_ctx.max_size < label.size())
+				first_level_ctx.max_size = label.size();
+		}
+		std::cout << "static inline bool\nlookup_first(string_view s)\n{\n";
+		first_level_trie.Emit(first_level_ctx);
+		std::cout << "}\n\n";
 
 		std::cout << "} // namespace\n";
 	}
@@ -312,8 +411,8 @@ main(int ac, char *av[]) try {
 			if (delim == std::string::npos)
 				root.AddDouble(wildcard, rule, data);
 			else
-				root.AddMultiple(wildcard, rule, data.substr(delim + 1),
-						 data.substr(0, delim));
+				root.AddMultiple(wildcard, rule, data.substr(0, delim),
+						 data.substr(delim + 1));
 		}
 	}
 
