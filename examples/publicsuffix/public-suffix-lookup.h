@@ -6,8 +6,8 @@
 // This header is generated.
 #include "public-suffix-tables.h"
 
-#define likely(x)               __builtin_expect(!!(x), 1)
-#define unlikely(x)             __builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 namespace public_suffix {
 
@@ -45,7 +45,8 @@ lookup_next_level(Node *node, string_view label)
 }
 
 static inline string_view
-lookup_multiple(string_view name, std::size_t next_dot, std::size_t last_dot) {
+lookup_multiple(string_view name, std::size_t next_dot, std::size_t last_dot)
+{
 	// The domain suffix verified so far.
 	auto verified = last_dot;
 	bool wildcard = lookup_first(name.substr(verified + 1));
@@ -85,22 +86,17 @@ lookup_multiple(string_view name, std::size_t next_dot, std::size_t last_dot) {
 static inline string_view
 lookup(string_view name)
 {
-	if (unlikely(name.empty()))
-		return name;
-
+	// Limitation: 16-bit ints are used internally to store dot positions.
 	if (unlikely(name.size() > std::numeric_limits<std::uint16_t>::max()))
 		throw std::runtime_error("too long domain name");
 
 	// Count the dots and remember the last 4 of them.
 	std::size_t num_dots = 0;
-	union {
-		std::uint64_t four;
-		std::uint16_t pos[4];
-	} dots = {0};
+	std::uint64_t last_pos = 0;
 
-	const char *s = name.data();
+	std::size_t i = 0;
 	std::size_t n = name.size();
-
+	const char *s = name.data();
 	__m128i x = _mm_set1_epi8('.');
 	while (n > 16) {
 		__m128i d = _mm_loadu_si128((const __m128i *) s);
@@ -109,13 +105,13 @@ lookup(string_view name)
 		while (m) {
 			auto b = __builtin_ctz(m);
 
-			auto i = s - name.data() + b;
-			dots.four = i | (dots.four << 16);
+			last_pos = (i + b + 1) | (last_pos << 16);
 			num_dots++;
 
 			m ^= 1 << b;
 		}
 
+		i += 16;
 		s += 16;
 		n -= 16;
 	}
@@ -128,8 +124,7 @@ lookup(string_view name)
 		while (m) {
 			auto b = __builtin_ctz(m);
 
-			auto i = s - name.data() + b;
-			dots.four = i | (dots.four << 16);
+			last_pos = (i + b + 1) | (last_pos << 16);
 			num_dots++;
 
 			m ^= 1 << b;
@@ -140,75 +135,69 @@ lookup(string_view name)
 	if (unlikely(num_dots == 0))
 		return name;
 
-	// Check if the domain name contains exactly one dot.
-	if (num_dots == 1) {
-		Node *level_2 = lookup_second_level(name);
-		if (level_2) {
-			if (level_2->rule == Rule::kException)
-				return name.substr(dots.pos[0] + 1);
-			if (level_2->rule == Rule::kRegular)
-				return name;
-		}
-
-		auto label_1 = name.substr(dots.pos[0] + 1);
-		return lookup_first(label_1) ? name : label_1;
-	}
-
-	// Handle relatively unlikely case of a domain with too many dots.
-	if (unlikely(num_dots > 4))
-		return lookup_multiple(name, dots.pos[1], dots.pos[0]);
-
-	auto label_2 = name.substr(dots.pos[1] + 1);
+	auto start_1 = last_pos & 0xffff;
+	auto start_2 = (last_pos >> 16) & 0xffff;
+	auto label_2 = name.substr(start_2);
 	auto level_2 = lookup_second_level(label_2);
+	// clang-format off
 	if (level_2) {
-		auto start_3 = num_dots == 2 ? 0 : dots.pos[2] + 1;
-		auto label_3 = name.substr(start_3, dots.pos[1] - start_3);
-		auto level_3 = lookup_next_level(level_2, label_3);
-		if (level_3) {
-			if (num_dots >= 3) {
-				auto start_4 = num_dots == 3 ? 0 : dots.pos[3] + 1;
-				auto label_4 = name.substr(start_4, dots.pos[2] - start_4);
-				auto level_4 = lookup_next_level(level_3, label_4);
-				if (level_4) {
-					if (num_dots == 4) {
-						auto label_5 = name.substr(0, dots.pos[3]);
-						auto level_5 = lookup_next_level(level_4, label_5);
-						if (level_5) {
-							if (level_5->rule == Rule::kException)
-								return name.substr(start_4);
-							if (level_5->rule == Rule::kRegular)
+		if (num_dots >= 2) {
+			auto start_3 = (last_pos >> 32) & 0xffff;
+			auto label_3 = name.substr(start_3, start_2 - start_3 - 1);
+			auto level_3 = lookup_next_level(level_2, label_3);
+			if (level_3) {
+				if (num_dots >= 3) {
+					auto start_4 = (last_pos >> 48);
+					auto label_4 = name.substr(start_4, start_3 - start_4 - 1);
+					auto level_4 = lookup_next_level(level_3, label_4);
+					if (level_4) {
+						if (unlikely(num_dots > 4)) {
+							// FIXME: this repeats lookup from the start
+							return lookup_multiple(name, start_2 - 1, start_1 - 1);
+						}
+
+						if (num_dots == 4) {
+							auto label_5 = name.substr(0, start_4 - 1);
+							auto level_5 = lookup_next_level(level_4, label_5);
+							if (level_5) {
+								if (level_5->rule == Rule::kException)
+									return name.substr(start_4);
+								if (level_5->rule == Rule::kRegular)
+									return name;
+							}
+
+							if (level_4->wildcard)
 								return name;
 						}
 
-						if (level_4->wildcard)
-							return name;
+						if (level_4->rule == Rule::kException)
+							return name.substr(start_3);
+						if (level_4->rule == Rule::kRegular)
+							return name.substr(start_4);
 					}
 
-					if (level_4->rule == Rule::kException)
-						return name.substr(start_3);
-					if (level_4->rule == Rule::kRegular)
+					if (level_3->wildcard)
 						return name.substr(start_4);
 				}
 
-				if (level_3->wildcard)
-					return name.substr(start_4);
+				if (level_3->rule == Rule::kException)
+					return label_2;
+				if (level_3->rule == Rule::kRegular)
+					return name.substr(start_3);
 			}
 
-			if (level_3->rule == Rule::kException)
-				return label_2;
-			if (level_3->rule == Rule::kRegular)
+			if (level_2->wildcard)
 				return name.substr(start_3);
 		}
 
-		if (level_2->wildcard)
-			return name.substr(start_3);
 		if (level_2->rule == Rule::kException)
-			return name.substr(dots.pos[0] + 1);
+			return name.substr(start_1);
 		if (level_2->rule == Rule::kRegular)
 			return label_2;
 	}
+	// clang-format on
 
-	auto label_1 = name.substr(dots.pos[0] + 1);
+	auto label_1 = name.substr(start_1);
 	return lookup_first(label_1) ? label_2 : label_1;
 }
 
