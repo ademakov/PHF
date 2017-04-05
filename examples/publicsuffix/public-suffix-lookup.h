@@ -85,7 +85,10 @@ lookup_multiple(string_view name, std::size_t next_dot, std::size_t last_dot) {
 static inline string_view
 lookup(string_view name)
 {
-	if (name.size() > std::numeric_limits<std::uint16_t>::max())
+	if (unlikely(name.empty()))
+		return name;
+
+	if (unlikely(name.size() > std::numeric_limits<std::uint16_t>::max()))
 		throw std::runtime_error("too long domain name");
 
 	// Count the dots and remember the last 4 of them.
@@ -94,11 +97,42 @@ lookup(string_view name)
 		std::uint64_t four;
 		std::uint16_t pos[4];
 	} dots = {0};
+
 	const char *s = name.data();
-	for (std::size_t i = 0; i < name.size(); i++) {
-		if (s[i] == '.') {
+	std::size_t n = name.size();
+
+	__m128i x = _mm_set1_epi8('.');
+	while (n > 16) {
+		__m128i d = _mm_loadu_si128((const __m128i *) s);
+		auto m = _mm_movemask_epi8(_mm_cmpeq_epi8(d, x));
+
+		while (m) {
+			auto b = __builtin_ctz(m);
+
+			auto i = s - name.data() + b;
 			dots.four = i | (dots.four << 16);
 			num_dots++;
+
+			m ^= 1 << b;
+		}
+
+		s += 16;
+		n -= 16;
+	}
+	if (n) {
+		__m128i d = _mm_loadu_si128((const __m128i *) s);
+		auto m = _mm_movemask_epi8(_mm_cmpeq_epi8(d, x));
+
+		m &= (1u << n) - 1;
+
+		while (m) {
+			auto b = __builtin_ctz(m);
+
+			auto i = s - name.data() + b;
+			dots.four = i | (dots.four << 16);
+			num_dots++;
+
+			m ^= 1 << b;
 		}
 	}
 
