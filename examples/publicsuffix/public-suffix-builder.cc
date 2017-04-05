@@ -8,15 +8,33 @@
 #include <unordered_map>
 #include <vector>
 
+#define PHF_DEBUG 2
+#include "phf/builder.h"
+#include "public-suffix-types.h"
+
 // Require libidn for handling international domain names.
 #include <idna.h>
 
-#define PHF_DEBUG 2
-#include "phf/builder.h"
-
-#include "public-suffix-types.h"
-
 using namespace public_suffix;
+
+struct HashFnv64 : public Fnv64
+{
+	static constexpr char name[] = "Fnv64";
+};
+
+struct HashMurmur : public Murmur
+{
+	static constexpr char name[] = "Murmur";
+};
+
+struct HashSpooky : public Spooky
+{
+	static constexpr char name[] = "Spooky";
+};
+
+constexpr char HashFnv64::name[6];
+constexpr char HashMurmur::name[7];
+constexpr char HashSpooky::name[7];
 
 struct BuildContext
 {
@@ -249,10 +267,11 @@ public:
 		it->second.AddSuffix(wildcard, rule, rest, first, rest);
 	}
 
+	template <typename Hash>
 	void BuildMPHF()
 	{
 		auto seed = rng::random_device_seed{}();
-		phf::builder<16, std::string, Fnv64> builder(3, seed);
+		phf::builder<16, std::string, Hash> builder(3, seed);
 		for (const auto &suffix : second_level_)
 			builder.insert(suffix.second.label_);
 
@@ -302,7 +321,7 @@ public:
 		}
 		std::cout << "};\n\n";
 
-		mph->emit(std::cout, "second_level_index", "string_view", "Fnv64");
+		mph->emit(std::cout, "second_level_index", "string_view", Hash::name);
 
 		Trie first_level_trie;
 		TrieContext first_level_ctx;
@@ -432,7 +451,7 @@ main(int ac, char *av[]) try {
 	for (char **names = &av[1]; *names; ++names)
 		LoadFile(root, *names);
 
-	root.BuildMPHF();
+	root.BuildMPHF<HashSpooky>();
 
 	return EXIT_SUCCESS;
 } catch (std::exception &e) {
