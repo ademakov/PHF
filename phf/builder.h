@@ -72,7 +72,7 @@ public:
 					++it;
 
 					// Mark a conflicting key in the filter.
-					if (level < 4) {
+					if (level < 2) {
 						index = hash & (filter.size() - 1);
 						filter[index] = true;
 					}

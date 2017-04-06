@@ -114,7 +114,7 @@ public:
 				return block_ranks_[block] + rank;
 			}
 
-			if (level < 4 && filter_size_) {
+			if (level < 2 && filter_size_) {
 				bit_index = filter_ + (hash & (filter_size_ - 1));
 				index = bit_index / value_nbits;
 				shift = bit_index % value_nbits;
