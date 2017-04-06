@@ -1,6 +1,6 @@
 
 AM_CPPFLAGS = -I$(top_srcdir)
-AM_CXXFLAGS = -Wall -Wextra
+AM_CXXFLAGS = -Wall -Wextra -msse4.2
 
 noinst_PROGRAMS = public-suffix-builder public-suffix-lookup
 
