@@ -36,79 +36,86 @@ public:
 
 	std::unique_ptr<mph_type> build()
 	{
-		nlevels_ = count;
+		std::size_t nlevels = count;
+		std::vector<bool> level_bits[count];
+
+		// Prepare a key filter.
+		std::vector<bool> filter;
+		filter.resize(power_of_two(keys_.size() * 2));
+
 #if PHF_DEBUG > 0
 		std::array<std::size_t, count> level_ranks = { 0 };
 		std::array<std::size_t, count> level_conflicts = { 0 };
 #endif
-
 		for (std::size_t level = 0; level < count; level++) {
 			if (keys_.empty()) {
-				nlevels_ = level;
+				nlevels = level;
 				break;
 			}
 
-			fill_level(level);
+			// Find a conflict-free key set.
+			fill_level(level, level_bits[level]);
 
 			auto it = keys_.begin();
-			auto size = level_bits_[level].size();
+			auto size = level_bits[level].size();
 			while (it != keys_.end()) {
 				hasher_ = *it;
 				auto hash = hasher_[level];
 				std::size_t index = hash & (size - 1);
 
-				if (level_bits_[level][index]) {
+				if (level_bits[level][index]) {
+					keys_.erase(it++);
 #if PHF_DEBUG > 0
 					level_ranks[level]++;
-#if PHF_DEBUG > 1
-					if (size <= 128)
-						std::cerr << *it << " - (" << index << ' '
-							  << std::hex << hash << std::dec
-							  << ")\n";
 #endif
-#endif
-					keys_.erase(it++);
 				} else {
+					++it;
+
+					// Mark a conflicting key in the filter.
+					if (level < 4) {
+						index = hash & (filter.size() - 1);
+						filter[index] = true;
+					}
 #if PHF_DEBUG > 0
 					level_conflicts[level]++;
-#if PHF_DEBUG > 1
-					if (size <= 128)
-						std::cerr << *it << " + (" << index << ' '
-							  << std::hex << hash << std::dec
-							  << ")\n";
 #endif
-#endif
-					++it;
 				}
 			}
-
-#if PHF_DEBUG > 1
-			if (size <= 128)
-				std::cerr << "--\n";
-#endif
 		}
 
 #if PHF_DEBUG > 0
-		std::cerr << nlevels_ << ' ' << keys_.size() << '\n';
-		for (std::size_t level = 0; level < nlevels_; level++) {
+		std::cerr << nlevels << ' ' << keys_.size() << '\n';
+		for (std::size_t level = 0; level < nlevels; level++) {
 			std::cerr << level_ranks[level] << '/' << level_conflicts[level] << '/'
-				  << level_bits_[level].size() << ' ';
+				  << level_bits[level].size() << ' ';
 		}
 		std::cerr << '\n';
 #endif
 
 		std::size_t total_size = 0;
 		std::array<std::size_t, count> sizes = {0};
-		for (std::size_t level = 0; level < nlevels_; level++) {
-			sizes[level] = level_bits_[level].size();
+		for (std::size_t level = 0; level < nlevels; level++) {
+			sizes[level] = level_bits[level].size();
 			total_size += sizes[level];
+		}
+		if (nlevels > 1) {
+			total_size += filter.size();
 		}
 
 		std::size_t bit_index = 0;
 		std::vector<std::uint64_t> bitset((total_size + 63) / 64);
-		for (std::size_t level = 0; level < nlevels_; level++) {
+		for (std::size_t level = 0; level < nlevels; level++) {
 			for (std::size_t index = 0; index < sizes[level]; index++) {
-				if (level_bits_[level][index]) {
+				if (level_bits[level][index]) {
+					auto mask = UINT64_C(1) << (bit_index % 64);
+					bitset[bit_index / 64] |= mask;
+				}
+				bit_index++;
+			}
+		}
+		if (nlevels > 1) {
+			for (std::size_t index = 0; index < filter.size(); index++) {
+				if (filter[index]) {
 					auto mask = UINT64_C(1) << (bit_index % 64);
 					bitset[bit_index / 64] |= mask;
 				}
@@ -126,26 +133,25 @@ public:
 	void clear()
 	{
 		hasher_ = hasher_type(seed_);
-
 		keys_.clear();
-		for (auto &bs : level_bits_)
-			bs.clear();
-		nlevels_ = 0;
 	}
 
 private:
-	void fill_level(size_t level)
+	std::size_t power_of_two(std::size_t n) {
+		unsigned long long s = n ? n : 2;
+		std::size_t nbits = (8 * sizeof(s) - __builtin_clzll(n - 1));
+		return (size_t{1} << nbits);
+	}
+
+	void fill_level(size_t level, std::vector<bool>& bitset)
 	{
 		// Compute the required bitset size.
 		std::size_t size = keys_.size() * gamma_;
-
 		// Round it to a power of two but no less than 64.
-		unsigned long long s = std::max(size, std::size_t{64});
-		std::size_t nbits = (8 * sizeof(s) - __builtin_clzll(s - 1));
-		size = size_t{1} << nbits;
+		size = power_of_two(std::max(size, std::size_t{64}));
 
-		level_bits_[level].clear();
-		level_bits_[level].resize(size);
+		bitset.clear();
+		bitset.resize(size);
 		std::vector<bool> collisions_(size);
 
 		for (const auto &key : keys_) {
@@ -160,10 +166,10 @@ private:
 			if (collisions_[index])
 				continue;
 
-			if (not level_bits_[level][index]) {
-				level_bits_[level][index] = true;
+			if (not bitset[index]) {
+				bitset[index] = true;
 			} else {
-				level_bits_[level][index] = false;
+				bitset[index] = false;
 				collisions_[index] = true;
 			}
 		}
@@ -177,9 +183,6 @@ private:
 	hasher_type hasher_;
 
 	std::unordered_set<key_type> keys_;
-
-	std::size_t nlevels_ = 0;
-	std::vector<bool> level_bits_[count];
 };
 
 } // namespace phf
