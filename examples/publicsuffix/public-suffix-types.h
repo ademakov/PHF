@@ -16,8 +16,7 @@
 #endif
 // clang-format on
 
-#include "MurmurHash3.h"
-#include "Spooky.h"
+#include "SpookyV2.h"
 
 namespace public_suffix {
 
@@ -73,18 +72,6 @@ struct Fnv64
 	result_type operator()(string_view data)
 	{
 		return operator()(data, FNV1_64_INIT);
-	}
-};
-
-struct Murmur
-{
-	using result_type = std::uint64_t;
-
-	result_type operator()(string_view data, std::uint64_t seed)
-	{
-		std::uint64_t out[2];
-		MurmurHash3_x64_128(data.data(), data.size(), seed, out);
-		return out[0];
 	}
 };
 

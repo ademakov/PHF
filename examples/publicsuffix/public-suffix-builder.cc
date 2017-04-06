@@ -22,18 +22,12 @@ struct HashFnv64 : public Fnv64
 	static constexpr char name[] = "Fnv64";
 };
 
-struct HashMurmur : public Murmur
-{
-	static constexpr char name[] = "Murmur";
-};
-
 struct HashSpooky : public Spooky
 {
 	static constexpr char name[] = "Spooky";
 };
 
 constexpr char HashFnv64::name[6];
-constexpr char HashMurmur::name[7];
 constexpr char HashSpooky::name[7];
 
 struct BuildContext
