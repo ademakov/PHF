@@ -152,21 +152,21 @@ public:
 		   << ";\n\n";
 		os << "phf::hasher<" << emit_count << ", " << key_type_name << ", "
 		   << hasher_type_name << "> static_hasher(std::array<std::uint64_t, "
-		   << emit_count << ">{0x" << std::hex;
+		   << emit_count << "> {{\n\t0x" << std::hex;
 		for (std::size_t i = 0; i < required_count; i++) {
 			os << hasher_.seeds()[i];
 			if (i != (required_count - 1))
 				os << ", 0x";
 		}
-		os << std::dec << "});\n\n";
-		os << "std::array<std::size_t, " << emit_count << "> static_levels = {";
+		os << std::dec << "\n}});\n\n";
+		os << "std::array<std::size_t, " << emit_count << "> static_levels {{\n\t";
 		for (std::size_t i = 0; i < required_count; i++)
 			os << levels_[i] << ", ";
-		os << "};\n\n";
-		os << "std::array<std::uint64_t, static_bitset_size> static_bitset_data = {\n";
+		os << "\n}};\n\n";
+		os << "std::array<std::uint64_t, static_bitset_size> static_bitset_data {{\n";
 		for (auto value : bitset_)
 			os << "\t0x" << std::hex << value << std::dec << ",\n";
-		os << "};\n\n";
+		os << "}};\n\n";
 		os << "struct static_bitset {\n";
 		os << "\tusing value_type = std::uint64_t;\n";
 		os << "\tusing iterator = std::uint64_t *;\n";

@@ -44,8 +44,8 @@ public:
 		filter.resize(power_of_two(keys_.size() * 2));
 
 #if PHF_DEBUG > 0
-		std::array<std::size_t, count> level_ranks = { 0 };
-		std::array<std::size_t, count> level_conflicts = { 0 };
+		std::array<std::size_t, count> level_ranks{{0}};
+		std::array<std::size_t, count> level_conflicts{{0}};
 #endif
 		for (std::size_t level = 0; level < count; level++) {
 			if (keys_.empty()) {
@@ -93,7 +93,7 @@ public:
 #endif
 
 		std::size_t total_size = 0;
-		std::array<std::size_t, count> sizes = {0};
+		std::array<std::size_t, count> sizes{{0}};
 		for (std::size_t level = 0; level < nlevels; level++) {
 			sizes[level] = level_bits[level].size();
 			total_size += sizes[level];
@@ -137,13 +137,14 @@ public:
 	}
 
 private:
-	std::size_t power_of_two(std::size_t n) {
+	std::size_t power_of_two(std::size_t n)
+	{
 		unsigned long long s = n ? n : 2;
 		std::size_t nbits = (8 * sizeof(s) - __builtin_clzll(n - 1));
 		return (size_t{1} << nbits);
 	}
 
-	void fill_level(size_t level, std::vector<bool>& bitset)
+	void fill_level(size_t level, std::vector<bool> &bitset)
 	{
 		// Compute the required bitset size.
 		std::size_t size = keys_.size() * gamma_;
