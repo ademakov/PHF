@@ -40,7 +40,7 @@ public:
 	minimal_perfect_hash(const hasher_type &hasher, std::array<rank_type, count> levels,
 			     bitset_type &&bitset)
 		: hasher_(hasher), levels_(levels), bitset_(std::move(bitset)), filter_(0),
-		  filter_size_(0), max_rank_(0)
+		  max_rank_(0)
 	{
 		rank_type rank_space = 0;
 		for (auto level : levels_) {
@@ -51,10 +51,10 @@ public:
 
 		// Check if there is a conflict filter.
 		rank_type total_space = bitset_.size() * value_nbits;
-		if (rank_space < total_space) {
-			filter_ = rank_space / value_nbits;
-			filter_size_ = total_space - rank_space;
-		}
+		if (total_space != (rank_space + levels_[0]))
+			throw std::invalid_argument(
+				"filter size must be equal to the level 0 size");
+		filter_ = rank_space / value_nbits;
 
 		// Initialize cumulative rank count array.
 		size_t nblocks = (rank_space + block_nbits - 1) / block_nbits;
@@ -90,24 +90,35 @@ public:
 	{
 		hasher_ = key;
 
-		rank_type base = 0;
-		for (std::size_t level = 0; level < count; level++) {
+		auto base = levels_[0];
+		auto hash = hasher_[0];
+		auto bit_index = hash & (base - 1);
+		auto index = bit_index / value_nbits;
+		auto shift = bit_index % value_nbits;
+		auto mask = UINT64_C(1) << shift;
+		auto value = bitset_[index];
+		if ((value & mask) != 0)
+			return get_rank(index, value, mask);
+
+		if ((bitset_[filter_ + index] & mask) == 0)
+			return not_found;
+
+		for (std::size_t level = 1; level < count; level++) {
 			auto size = levels_[level];
 			if (size == 0)
-				continue;
+				break;
 
-			auto hash = hasher_[level];
-			auto bit_index = base + (hash & (size - 1));
-
-			auto index = bit_index / value_nbits;
-			auto shift = bit_index % value_nbits;
-			auto value = bitset_[index];
-			auto mask = UINT64_C(1) << shift;
+			hash = hasher_[level];
+			bit_index = base + (hash & (size - 1));
+			index = bit_index / value_nbits;
+			shift = bit_index % value_nbits;
+			mask = UINT64_C(1) << shift;
+			value = bitset_[index];
 			if ((value & mask) != 0)
 				return get_rank(index, value, mask);
 
-			if (level < 2 && filter_size_) {
-				bit_index = hash & (filter_size_ - 1);
+			if (level < 2) {
+				bit_index = hash & (levels_[0] - 1);
 				index = bit_index / value_nbits;
 				shift = bit_index % value_nbits;
 				mask = UINT64_C(1) << shift;
@@ -186,8 +197,6 @@ private:
 	bitset_type bitset_;
 
 	rank_type filter_;
-	rank_type filter_size_;
-
 	rank_type max_rank_;
 	std::vector<rank_type> block_ranks_;
 	std::unordered_map<key_type, rank_type> extra_keys_;
@@ -204,9 +213,9 @@ private:
 		// no break
 		case 1:
 			rank += __builtin_popcountll(bitset_[index - 1]);
-			// no break
+		// no break
 		case 0:
-			rank +=  __builtin_popcountll(value & (mask - 1));
+			rank += __builtin_popcountll(value & (mask - 1));
 		}
 		return rank;
 	}

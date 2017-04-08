@@ -38,10 +38,7 @@ public:
 	{
 		std::size_t nlevels = count;
 		std::vector<bool> level_bits[count];
-
-		// Prepare a key filter.
 		std::vector<bool> filter;
-		filter.resize(power_of_two(keys_.size() * 2));
 
 #if PHF_DEBUG > 0
 		std::array<std::size_t, count> level_ranks{{0}};
@@ -55,6 +52,10 @@ public:
 
 			// Find a conflict-free key set.
 			fill_level(level, level_bits[level]);
+
+			// Set key filter size equal to the first level size.
+			if (level == 0)
+				filter.resize(level_bits[0].size());
 
 			auto it = keys_.begin();
 			auto size = level_bits[level].size();
@@ -98,9 +99,8 @@ public:
 			sizes[level] = level_bits[level].size();
 			total_size += sizes[level];
 		}
-		if (nlevels > 1) {
+		if (nlevels > 1)
 			total_size += filter.size();
-		}
 
 		std::size_t bit_index = 0;
 		std::vector<std::uint64_t> bitset((total_size + 63) / 64);
