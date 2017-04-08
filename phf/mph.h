@@ -27,15 +27,15 @@ public:
 	using base_hasher_type = Hash;
 	using hasher_type = hasher<N, key_type, base_hasher_type>;
 	using bitset_type = Bitset;
-	using bitset_value_type = typename bitset_type::value_type;
 
 	static constexpr rank_type count = hasher_type::count;
 
-	static constexpr rank_type block_nbits = 256;
-	static constexpr rank_type value_nbits = 8 * sizeof(bitset_value_type);
-	static constexpr rank_type block_nvalues = block_nbits / value_nbits;
+	using bitset_value_type = typename bitset_type::value_type;
+	static_assert(sizeof(bitset_value_type) == 8, "invalid value type");
 
-	static_assert(value_nbits == 64, "invalid value type");
+	static constexpr rank_type value_nbits = 8 * sizeof(bitset_value_type);
+	static constexpr rank_type block_nvalues = 4;
+	static constexpr rank_type block_nbits = value_nbits * block_nvalues;
 
 	minimal_perfect_hash(const hasher_type &hasher, std::array<rank_type, count> levels,
 			     bitset_type &&bitset)
@@ -52,7 +52,7 @@ public:
 		// Check if there is a conflict filter.
 		rank_type total_space = bitset_.size() * value_nbits;
 		if (rank_space < total_space) {
-			filter_ = rank_space;
+			filter_ = rank_space / value_nbits;
 			filter_size_ = total_space - rank_space;
 		}
 
@@ -98,30 +98,24 @@ public:
 
 			auto hash = hasher_[level];
 			auto bit_index = base + (hash & (size - 1));
-			base += size;
 
 			auto index = bit_index / value_nbits;
 			auto shift = bit_index % value_nbits;
 			auto value = bitset_[index];
 			auto mask = UINT64_C(1) << shift;
-			if ((value & mask) != 0) {
-				auto block = bit_index / block_nbits;
-				auto block_index = block * block_nvalues;
-
-				rank_type rank = __builtin_popcountll(value & (mask - 1));
-				for (; block_index < index; block_index++)
-					rank += __builtin_popcountll(bitset_[block_index]);
-				return block_ranks_[block] + rank;
-			}
+			if ((value & mask) != 0)
+				return get_rank(index, value, mask);
 
 			if (level < 2 && filter_size_) {
-				bit_index = filter_ + (hash & (filter_size_ - 1));
+				bit_index = hash & (filter_size_ - 1);
 				index = bit_index / value_nbits;
 				shift = bit_index % value_nbits;
 				mask = UINT64_C(1) << shift;
-				if ((bitset_[index] & mask) == 0)
+				if ((bitset_[filter_ + index] & mask) == 0)
 					return not_found;
 			}
+
+			base += size;
 		}
 
 		if (enable_extra_keys && !extra_keys_.empty()) {
@@ -197,6 +191,25 @@ private:
 	rank_type max_rank_;
 	std::vector<rank_type> block_ranks_;
 	std::unordered_map<key_type, rank_type> extra_keys_;
+
+	std::size_t get_rank(std::size_t index, std::uint64_t value, std::uint64_t mask) const
+	{
+		rank_type rank = block_ranks_[index / block_nvalues];
+		switch (index % block_nvalues) {
+		case 3:
+			rank += __builtin_popcountll(bitset_[index - 3]);
+		// no break
+		case 2:
+			rank += __builtin_popcountll(bitset_[index - 2]);
+		// no break
+		case 1:
+			rank += __builtin_popcountll(bitset_[index - 1]);
+			// no break
+		case 0:
+			rank +=  __builtin_popcountll(value & (mask - 1));
+		}
+		return rank;
+	}
 };
 
 } // namespace phf
